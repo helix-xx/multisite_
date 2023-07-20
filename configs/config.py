@@ -1,8 +1,8 @@
 from parsl.executors import HighThroughputExecutor
-from parsl.providers import CobaltProvider, AdHocProvider
+from parsl.providers import CobaltProvider, AdHocProvider, SlurmProvider
 from parsl.addresses import address_by_hostname
-from parsl.launchers import AprunLauncher
-from parsl.channels import SSHChannel
+from parsl.launchers import AprunLauncher,SrunLauncher
+from parsl.channels import SSHChannel, LocalChannel
 from parsl import Config
 
 
@@ -108,6 +108,81 @@ source /homes/lward/miniconda3/bin/activate /home/lward/multi-site-campaigns/env
 which python
 ''',
                 ),
+            )]
+    )
+        
+    return config
+
+###################################################################
+# csecluster config
+###################################################################
+def csecluster1(log_dir: str) -> Config:
+    """Configuration where simulation tasks run on Theta and ML tasks run on Lambda.
+
+    Args:
+        log_dir: Path to store monitoring DB and parsl logs
+    Returns:
+        (Config) Parsl configuration
+    """
+    # Set a Theta config for using the KNL nodes with a single worker per node
+    config = Config(
+        run_dir=log_dir,
+        retries=1,
+        executors=[
+            HighThroughputExecutor(
+                label='cpu',
+                max_workers=1,
+                address=address_by_hostname(),
+                provider=SlurmProvider(
+                cmd_timeout=60,     # Add extra time for slow scheduler responses
+                channel=LocalChannel(),
+                nodes_per_block=1,
+                init_blocks=1,
+                min_blocks=1,
+                max_blocks=1,
+                partition='titan',                                 # Replace with partition name
+                # scheduler_options='#SBATCH -A <YOUR_ALLOCATION>',   # Enter scheduler_options if needed
+
+                # Command to be run before starting a worker, such as:
+                # 'module load Anaconda; source activate parsl_env'.
+                worker_init='''
+                conda activate colmena
+                which python
+                ''',
+
+                # Ideally we set the walltime to the longest supported walltime.
+                walltime='00:60:00',
+                launcher=SrunLauncher(),
+            ),
+                ),
+            HighThroughputExecutor(
+                address=address_by_hostname(),
+                label="gpu",
+                available_accelerators=4,
+                # worker_ports=(54928, 54875),  # Hard coded to match up with SSH tunnels
+                max_workers=1,
+                worker_logdir_root='/home/lward/multi-site-campaigns/parsl-logs',
+                provider=SlurmProvider(
+                cmd_timeout=60,     # Add extra time for slow scheduler responses
+                channel=LocalChannel(),
+                nodes_per_block=1,
+                init_blocks=1,
+                min_blocks=1,
+                max_blocks=1,
+                partition='titan',                                 # Replace with partition name
+                # scheduler_options='#SBATCH -A <YOUR_ALLOCATION>',   # Enter scheduler_options if needed
+
+                # Command to be run before starting a worker, such as:
+                # 'module load Anaconda; source activate parsl_env'.
+                worker_init='''
+                conda activate colmena
+                which python
+                ''',
+
+                # Ideally we set the walltime to the longest supported walltime.
+                walltime='4:00:00',
+                launcher=SrunLauncher(),
+            ),
             )]
     )
         
