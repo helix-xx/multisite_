@@ -1,8 +1,8 @@
 from parsl.executors import HighThroughputExecutor
-from parsl.providers import CobaltProvider, AdHocProvider, SlurmProvider
+from parsl.providers import CobaltProvider, AdHocProvider, SlurmProvider, LocalProvider
 from parsl.addresses import address_by_hostname
 from parsl.launchers import AprunLauncher,SrunLauncher
-from parsl.channels import SSHChannel, LocalChannel
+from parsl.channels import SSHChannel, LocalChannel, SSHInteractiveLoginChannel
 from parsl import Config
 
 
@@ -117,6 +117,86 @@ which python
 # csecluster config
 ###################################################################
 def csecluster1(log_dir: str) -> Config:
+    config = Config(
+        run_dir=log_dir,
+        retries=1,
+        executors=[
+            HighThroughputExecutor(
+                label="cpu",
+                max_workers=8,
+                address=address_by_hostname(),
+                worker_port_range=(20000,30000),
+                worker_logdir_root='/home/lizz_lab/cse30019698/parsl-logs',
+                provider=AdHocProvider(
+                    channels=[SSHChannel(hostname='127.0.0.1',port='10022', username='cse30019698', password='Yxx!199871!', script_dir='/home/cse30019698/parsl-logs')],
+                    worker_init='''
+                    # Activate conda environment
+                    source /home/lizz_lab/cse30019698/software/miniconda3/bin/activate /home/lizz_lab/cse30019698/software/miniconda3/envs/multisite
+                    which python
+                    ''',
+                ),
+            ),
+            HighThroughputExecutor(
+                address=address_by_hostname(),
+                label="gpu",
+                available_accelerators=4,
+                worker_port_range=(20000,30000),
+                max_workers=1,
+                worker_logdir_root='/home/lizz_lab/cse30019698/parsl-logs',
+                provider=AdHocProvider(
+                    channels=[SSHChannel(hostname='rtxgpu005', port='10022', username='cse30019698', password='Yxx!199871!', script_dir='/home/cse30019698/parsl-logs')],
+                    worker_init='''
+                    # Activate conda environment
+                    source /home/lizz_lab/cse30019698/software/miniconda3/bin/activate /home/lizz_lab/cse30019698/software/miniconda3/envs/multisite
+                    which python
+                    ''',
+                ),
+            )]
+    )
+        
+    return config
+
+
+def wsl(log_dir: str) -> Config:
+    config = Config(
+        run_dir=log_dir,
+        retries=1,
+        executors=[
+            HighThroughputExecutor(
+                label="cpu",
+                max_workers=8,
+                address=address_by_hostname(),
+                worker_ports=(11001, 11002),  # Hard coded to match up with SSH tunnels
+                worker_logdir_root='/home/yxx/parsl-logs',
+                provider=AdHocProvider(
+                    channels=[SSHChannel(hostname='127.0.0.1',port='10022', username='yxx', password='630824252', script_dir='/home/yxx/parsl-logs')],
+                    worker_init='''
+                    # Activate conda environment
+                    source /home/yxx/miniconda3/bin/activate /home/yxx/miniconda3/envs/multisite
+                    which python
+                    ''',
+                ),
+            ),
+            HighThroughputExecutor(
+                address='localhost',
+                label="gpu",
+                available_accelerators=1,
+                worker_ports=(54928, 54875),  # Hard coded to match up with SSH tunnels
+                worker_logdir_root='/home/yxx/parsl-logs',
+                provider=AdHocProvider(
+                    channels=[SSHChannel(hostname='127.0.0.1', port='10022', username='yxx', password='630824252', script_dir='/home/yxx/parsl-logs')],
+                    worker_init='''
+                    # Activate conda environment
+                    source /home/yxx/miniconda3/bin/activate /home/yxx/miniconda3/envs/multisite
+                    which python
+                    ''',
+                ),
+            )]
+    )
+        
+    return config
+
+def wsl_local(log_dir: str) -> Config:
     """Configuration where simulation tasks run on Theta and ML tasks run on Lambda.
 
     Args:
@@ -130,59 +210,54 @@ def csecluster1(log_dir: str) -> Config:
         retries=1,
         executors=[
             HighThroughputExecutor(
-                label='cpu',
-                max_workers=1,
+                label="cpu",
+                max_workers=8,
                 address=address_by_hostname(),
-                provider=SlurmProvider(
-                cmd_timeout=60,     # Add extra time for slow scheduler responses
-                channel=LocalChannel(),
-                nodes_per_block=1,
-                init_blocks=1,
-                min_blocks=1,
-                max_blocks=1,
-                partition='titan',                                 # Replace with partition name
-                # scheduler_options='#SBATCH -A <YOUR_ALLOCATION>',   # Enter scheduler_options if needed
-
-                # Command to be run before starting a worker, such as:
-                # 'module load Anaconda; source activate parsl_env'.
-                worker_init='''
-                conda activate colmena
-                which python
-                ''',
-
-                # Ideally we set the walltime to the longest supported walltime.
-                walltime='00:60:00',
-                launcher=SrunLauncher(),
+                worker_ports=(11001, 11002),  # Hard coded to match up with SSH tunnels
+                worker_logdir_root='/home/yxx/parsl-logs',
+                # provider=AdHocProvider(
+                #     channels=[SSHChannel(hostname='127.0.0.1',port='10022', username='yxx', password='630824252', script_dir='/home/yxx/parsl-logs')],
+                #     worker_init='''
+                #     # Activate conda environment
+                #     conda activate multisite
+                #     which python
+                #     ''',
+                # ),
+                provider=LocalProvider(
+                    script_dir='/home/yxx/parsl-logs',
+                    worker_init='''
+                    # Activate conda environment
+                    source /home/yxx/miniconda3/bin/activate /home/yxx/miniconda3/envs/multisite
+                    which python
+                    ''',
+                    ),
             ),
-                ),
             HighThroughputExecutor(
-                address=address_by_hostname(),
+                address='localhost',
                 label="gpu",
-                available_accelerators=4,
-                # worker_ports=(54928, 54875),  # Hard coded to match up with SSH tunnels
-                max_workers=1,
-                worker_logdir_root='/home/lward/multi-site-campaigns/parsl-logs',
-                provider=SlurmProvider(
-                cmd_timeout=60,     # Add extra time for slow scheduler responses
-                channel=LocalChannel(),
-                nodes_per_block=1,
-                init_blocks=1,
-                min_blocks=1,
-                max_blocks=1,
-                partition='titan',                                 # Replace with partition name
-                # scheduler_options='#SBATCH -A <YOUR_ALLOCATION>',   # Enter scheduler_options if needed
-
-                # Command to be run before starting a worker, such as:
-                # 'module load Anaconda; source activate parsl_env'.
-                worker_init='''
-                conda activate colmena
-                which python
-                ''',
-
-                # Ideally we set the walltime to the longest supported walltime.
-                walltime='4:00:00',
-                launcher=SrunLauncher(),
-            ),
+                available_accelerators=1,
+                worker_ports=(54928, 54875),  # Hard coded to match up with SSH tunnels
+                worker_logdir_root='/home/yxx/parsl-logs',
+                # provider=AdHocProvider(
+                #     channels=[SSHChannel(hostname='127.0.0.1', port='10022', username='yxx', password='630824252', script_dir='/home/yxx/parsl-logs')],
+                #     worker_init='''
+                #     # Activate conda environment
+                #     conda activate multisite
+                #     which python
+                #     ''',
+                # ),
+                    provider=LocalProvider(
+                    nodes_per_block=1,
+                    init_blocks=1,
+                    min_blocks=1,
+                    max_blocks=1,
+                    script_dir='/home/yxx/parsl-logs',
+                    worker_init='''
+                    # Activate conda environment
+                    source /home/yxx/miniconda3/bin/activate /home/yxx/miniconda3/envs/multisite
+                    which python
+                    ''',
+                    ),
             )]
     )
         
