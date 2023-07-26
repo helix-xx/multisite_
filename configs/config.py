@@ -132,6 +132,7 @@ def csecluster1(log_dir: str) -> Config:
                     worker_init='''
                     # Activate conda environment
                     source /home/lizz_lab/cse30019698/software/miniconda3/bin/activate /home/lizz_lab/cse30019698/software/miniconda3/envs/multisite
+                    export CUDA_VISIBLE_DEVICES=0,1,2,3
                     which python
                     ''',
                 ),
@@ -148,6 +149,8 @@ def csecluster1(log_dir: str) -> Config:
                     worker_init='''
                     # Activate conda environment
                     source /home/lizz_lab/cse30019698/software/miniconda3/bin/activate /home/lizz_lab/cse30019698/software/miniconda3/envs/multisite
+                    export CUDA_VISIBLE_DEVICES=0,1,2,3
+                    # export TF_GPU_ALLOCATOR=cuda_malloc_async
                     which python
                     ''',
                 ),
