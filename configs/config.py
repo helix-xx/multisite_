@@ -142,7 +142,6 @@ def csecluster1(log_dir: str) -> Config:
                 label="gpu",
                 available_accelerators=4,
                 worker_port_range=(20000,30000),
-                max_workers=1,
                 worker_logdir_root='/home/lizz_lab/cse30019698/parsl-logs',
                 provider=AdHocProvider(
                     channels=[SSHChannel(hostname='rtxgpu005', port='10022', username='cse30019698', password='Yxx!199871!', script_dir='/home/cse30019698/parsl-logs')],
