@@ -128,7 +128,7 @@ def csecluster1(log_dir: str) -> Config:
                 worker_port_range=(20000,30000),
                 worker_logdir_root='/home/lizz_lab/cse30019698/parsl-logs',
                 provider=AdHocProvider(
-                    channels=[SSHChannel(hostname='127.0.0.1',port='10022', username='cse30019698', password='Yxx!199871!', script_dir='/home/cse30019698/parsl-logs')],
+                    channels=[SSHChannel(hostname='rtxgpu005',port='22', username='cse30019698', password='Yxx!199871!', script_dir='/home/cse30019698/parsl-logs')],
                     worker_init='''
                     # Activate conda environment
                     source /home/lizz_lab/cse30019698/software/miniconda3/bin/activate /home/lizz_lab/cse30019698/software/miniconda3/envs/multisite

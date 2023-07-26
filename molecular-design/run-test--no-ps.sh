@@ -27,7 +27,7 @@ python run.py \
        --ps-globus-config globus_config.json \
        --num-qc-workers 8 \
        --retrain-frequency 1 \
-       --molecules-per-ml-task 5000 \
+       --molecules-per-ml-task 50000 \
        --search-size 128 \
        --ps-threshold 1000 \
        --use-parsl \

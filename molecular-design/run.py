@@ -36,7 +36,7 @@ from moldesign.store.recipes import apply_recipes
 from moldesign.utils import get_platform_info
 
 # from config import theta_debug_and_venti as make_config
-from config import wsl as make_config
+from config import csecluster1 as make_config
 
 
 def run_simulation(smiles: str, n_nodes: int, spec: str = 'small_basis') -> Tuple[List[OptimizationResult], List[AtomicResult]]:
