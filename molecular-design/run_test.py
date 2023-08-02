@@ -28,6 +28,7 @@ from colmena.models import Result
 from colmena.queue.redis import RedisQueues
 from colmena.thinker import BaseThinker, result_processor, event_responder, task_submitter
 from colmena.thinker.resources import ResourceCounter
+from colmena.task_server import ParslTaskServer
 from qcelemental.models import OptimizationResult, AtomicResult
 
 from moldesign.score.nfp import evaluate_mpnn, retrain_mpnn, NFPMessage, custom_objects
@@ -108,7 +109,9 @@ class Thinker(BaseThinker):
                  output_dir: str,
                  beta: float,
                  pause_during_update: bool,
-                 ps_names: Dict[str, str]):
+                 ps_names: Dict[str, str],
+                 doer:ParslTaskServer=None,
+                 ):
         """
         Args:
             queues: Queues used to communicate with the method server
@@ -181,6 +184,13 @@ class Thinker(BaseThinker):
 
         # Allocate all nodes that are under controlled use to simulation
         self.rec.reallocate(None, 'simulation', 'all')
+        
+        # get doer and call scale
+        self.doer=doer
+        
+        # add loop and id for task
+        self.loop=0
+        self.rank_id=0
 
     @task_submitter(task_type='simulation')
     def submit_qc(self):
@@ -205,9 +215,10 @@ class Thinker(BaseThinker):
 
             self.logger.info(f'Submitted {smiles} to simulate with NWChem. Run score: {info["ucb"]}')
             self.already_searched.add(inchi)
-            self.queues.send_inputs(smiles, task_info=info,
+            self.queues.send_inputs(smiles, self.rank_id, self.loop, task_info=info,
                                     method='run_simulation', keep_inputs=True,
                                     topic='simulate')
+            self.rank_id+=1
 
     @result_processor(topic='simulate')
     def process_outputs(self, result: Result):
@@ -245,6 +256,9 @@ class Thinker(BaseThinker):
 
             # Add the IPs to the result object
             result.task_info["ip"] = data.oxidation_potential.copy()
+            # Add rank_id and loop to result object
+            # result.task_info["rank_id"] = rank_id
+            # result.task_info["loop"] = loop
 
             # Add to database
             with open(self.output_dir.joinpath('moldata-records.json'), 'a') as fp:
@@ -298,11 +312,13 @@ class Thinker(BaseThinker):
         for mid, model in enumerate(self.mpnns):
             self.queues.send_inputs(model.get_config(),
                                     train_data_proxy,
+                                    self.rank_id, self.loop,
                                     method='retrain_mpnn',
                                     topic='train',
                                     task_info={'model_id': mid},
                                     keep_inputs=False,
                                     input_kwargs={'random_state': mid})
+            self.rank_id += 1
             self.logger.info(f'Submitted model {mid} to train with {len(train_data)} entries')
 
     @result_processor(topic='train')
@@ -372,10 +388,11 @@ class Thinker(BaseThinker):
                 if ps_name is None:
                     self.inference_limiter.acquire()
 
-                self.queues.send_inputs(model_msg_proxy, chunk_msg,
+                self.queues.send_inputs(model_msg_proxy, chunk_msg, self.rank_id, self.loop,
                                         topic='infer', method='evaluate_mpnn',
                                         keep_inputs=False,
                                         task_info={'chunk_id': cid, 'chunk_size': len(chunk), 'model_id': mid})
+                self.rank_id += 1
         self.logger.info('Finished submitting molecules for inference')
 
     @event_responder(event_name='start_inference')
@@ -424,6 +441,27 @@ class Thinker(BaseThinker):
         self.update_in_progress.clear()
         self.update_complete.set()
         self.task_queue_ready.set()
+        self.loop += 1
+        
+        ## scale
+        gpu_executor = [executor for executor in self.doer.executors if executor.label == 'gpu'][0]
+        cpu_executor = [executor for executor in self.doer.executors if executor.label == 'cpu'][0]
+        if self.loop == 1:
+            gpu_executor.scale_out(2)
+            cpu_executor.scale_out(2)
+            self.logger.info('scale out 2')
+        elif self.loop == 2:
+            gpu_executor.scale_out(4)
+            cpu_executor.scale_out(4)
+            self.logger.info('scale out 4')
+        elif self.loop == 3:
+            gpu_executor.scale_in(1)
+            cpu_executor.scale_in(1)
+            self.logger.info('scale in 1')
+        else:
+            gpu_executor.scale_out(4)
+            cpu_executor.scale_out(4)
+            self.logger.info('max scale out 4')
 
     def _select_molecules(self, y_pred):
         """Select a list of molecules given the predictions from each model
@@ -640,7 +678,8 @@ if __name__ == '__main__':
         output_dir=out_dir,
         beta=args.beta,
         pause_during_update=args.pause_during_update,
-        ps_names=ps_names
+        ps_names=ps_names,
+        doer=doer,
     )
     logging.info('Created the method server and task generator')
 
