@@ -37,7 +37,7 @@ from moldesign.store.recipes import apply_recipes
 from moldesign.utils import get_platform_info
 
 # from config import theta_debug_and_venti as make_config
-from config import csecluster_RT as make_config
+from config import csecluster_RT_scale as make_config
 
 
 def run_simulation(smiles: str, n_nodes: int, spec: str = 'small_basis') -> Tuple[List[OptimizationResult], List[AtomicResult]]:
@@ -111,6 +111,9 @@ class Thinker(BaseThinker):
                  pause_during_update: bool,
                  ps_names: Dict[str, str],
                  doer:ParslTaskServer=None,
+                 ## modified by YXX
+                 model_count: int = 4,
+                 optional_params: Dict[str, Any] = None,
                  ):
         """
         Args:
@@ -185,12 +188,15 @@ class Thinker(BaseThinker):
         # Allocate all nodes that are under controlled use to simulation
         self.rec.reallocate(None, 'simulation', 'all')
         
+        ### modified by YXX
         # get doer and call scale
         self.doer=doer
-        
         # add loop and id for task
         self.loop=0
         self.rank_id=0
+        # add model_count and optional_params
+        self.model_count=model_count
+        self.optional_params=optional_params
 
     @task_submitter(task_type='simulation')
     def submit_qc(self):
@@ -215,7 +221,10 @@ class Thinker(BaseThinker):
 
             self.logger.info(f'Submitted {smiles} to simulate with NWChem. Run score: {info["ucb"]}')
             self.already_searched.add(inchi)
-            self.queues.send_inputs(smiles, self.rank_id, self.loop, task_info=info,
+            
+            info['rank_id']=self.rank_id
+            info['loop']=self.loop
+            self.queues.send_inputs(smiles,task_info=info,
                                     method='run_simulation', keep_inputs=True,
                                     topic='simulate')
             self.rank_id+=1
@@ -310,16 +319,16 @@ class Thinker(BaseThinker):
             train_data_proxy = train_data  # No proxy
 
         for mid, model in enumerate(self.mpnns):
-            self.queues.send_inputs(model.get_config(),
-                                    train_data_proxy,
-                                    self.rank_id, self.loop,
-                                    method='retrain_mpnn',
-                                    topic='train',
-                                    task_info={'model_id': mid},
-                                    keep_inputs=False,
-                                    input_kwargs={'random_state': mid})
-            self.rank_id += 1
-            self.logger.info(f'Submitted model {mid} to train with {len(train_data)} entries')
+            if mid <self.model_count:
+                self.queues.send_inputs(model.get_config(),
+                                        train_data_proxy,
+                                        method='retrain_mpnn',
+                                        topic='train',
+                                        task_info={'model_id': mid, 'rank_id': self.rank_id, 'loop': self.loop},
+                                        keep_inputs=False,
+                                        input_kwargs={'random_state': mid})
+                self.rank_id += 1
+                self.logger.info(f'Submitted model {mid} to train with {len(train_data)} entries')
 
     @result_processor(topic='train')
     def update_weights(self, result: Result):
@@ -351,11 +360,11 @@ class Thinker(BaseThinker):
 
         # Mark that a model has finished training and trigger inference if all done
         self.num_training_complete += 1
-        self.logger.info(f'Processed training task. {len(self.mpnns) - self.num_training_complete} models left to go')
+        self.logger.info(f'Processed training task. {self.model_count - self.num_training_complete} models left to go')
 
         # If all done, evict the training set
         ps_name = self.ps_names['train']
-        if ps_name is not None and len(self.mpnns) == self.num_training_complete:
+        if ps_name is not None and self.model_count == self.num_training_complete:
             ps.store.get_store(ps_name).evict(self.train_data_proxy_key)
             self.logger.info('All training completed. Evicted training set')
 
@@ -368,7 +377,7 @@ class Thinker(BaseThinker):
         ps_name = self.ps_names['infer']
 
         # Submit the chunks to the workflow engine
-        for mid in range(len(self.mpnns)):
+        for mid in range(self.model_count):
 
             # Get a model that is ready for inference
             model = self.ready_models.get()
@@ -388,10 +397,10 @@ class Thinker(BaseThinker):
                 if ps_name is None:
                     self.inference_limiter.acquire()
 
-                self.queues.send_inputs(model_msg_proxy, chunk_msg, self.rank_id, self.loop,
+                self.queues.send_inputs(model_msg_proxy, chunk_msg,
                                         topic='infer', method='evaluate_mpnn',
                                         keep_inputs=False,
-                                        task_info={'chunk_id': cid, 'chunk_size': len(chunk), 'model_id': mid})
+                                        task_info={'chunk_id': cid, 'chunk_size': len(chunk), 'model_id': mid, 'rank_id': self.rank_id,'loop': self.loop})
                 self.rank_id += 1
         self.logger.info('Finished submitting molecules for inference')
 
@@ -400,10 +409,11 @@ class Thinker(BaseThinker):
         """Re-prioritize the machine learning tasks"""
 
         #  Make arrays that will hold the output results from each run
-        y_pred = [np.zeros((len(x), len(self.mpnns)), dtype=np.float32) for x in self.inference_chunks]
+        y_pred = [np.zeros((len(x), self.model_count), dtype=np.float32) for x in self.inference_chunks]
 
         # Collect the inference runs
-        n_tasks = len(self.inference_chunks) * len(self.mpnns)
+        # n_tasks = len(self.inference_chunks) * len(self.mpnns)
+        n_tasks = len(self.inference_chunks) * self.model_count
         for i in range(n_tasks):
             # Wait for a result
             result = self.queues.get_result(topic='infer')
@@ -443,7 +453,8 @@ class Thinker(BaseThinker):
         self.task_queue_ready.set()
         self.loop += 1
         
-        ## scale
+        # modified by YXX for dynamic test [scale tasks models]
+        # scale
         gpu_executor = [executor for executor in self.doer.executors if executor.label == 'gpu'][0]
         cpu_executor = [executor for executor in self.doer.executors if executor.label == 'cpu'][0]
         if self.loop == 1:
@@ -455,13 +466,19 @@ class Thinker(BaseThinker):
             cpu_executor.scale_out(4)
             self.logger.info('scale out 4')
         elif self.loop == 3:
-            gpu_executor.scale_in(1)
-            cpu_executor.scale_in(1)
+            gpu_executor.scale_in(3)
+            cpu_executor.scale_in(3)
             self.logger.info('scale in 1')
         else:
             gpu_executor.scale_out(4)
             cpu_executor.scale_out(4)
             self.logger.info('max scale out 4')
+            
+        # #TODO modify parameters for number of tasks
+        # self.inference_chunks = 10
+        
+        # #TODO modify model numbers
+        # self.model_count = 8
 
     def _select_molecules(self, y_pred):
         """Select a list of molecules given the predictions from each model
@@ -526,6 +543,8 @@ if __name__ == '__main__':
     group.add_argument('--retrain-frequency', default=1, type=int, help="Number of completed computations that will trigger a retraining")
     group.add_argument("--beta", default=1, help="Degree of exploration for active learning. This is the beta from the UCB acquistion function", type=float)
     group.add_argument("--pause-during-update", action='store_true', help='Whether to stop running simulations while updating task list')
+    ## modified by YXX
+    group.add_argument("--optional-params", default={"simu":1,"train":1,"infer":1}, help="Running params for dynamic task numbers", type=dict)
 
     # Parameters related to model retraining
     group = parser.add_argument_group(title='Model Training', description='Settings related to model retraining')
@@ -551,10 +570,17 @@ if __name__ == '__main__':
     run_params = args.__dict__
 
     # Load in the models, initial dataset, agent and search space
+    # models = [
+    #     tf.keras.models.load_model(args.mpnn_model_path, custom_objects=custom_objects)
+    #     for path in tqdm(range(args.model_count), desc='Loading models')
+    # ]
+    
+    # modified by YXX for loading multiple models
     models = [
-        tf.keras.models.load_model(args.mpnn_model_path, custom_objects=custom_objects)
-        for path in tqdm(range(args.model_count), desc='Loading models')
+    tf.keras.models.load_model(os.path.join(args.mpnn_model_path,path,"model.h5") , custom_objects=custom_objects)
+    for path in tqdm(os.listdir(args.mpnn_model_path), desc='Loading models')
     ]
+    
 
     # Read in the training set
     with open(args.training_set) as fp:
@@ -680,6 +706,9 @@ if __name__ == '__main__':
         pause_during_update=args.pause_during_update,
         ps_names=ps_names,
         doer=doer,
+        # modified by yxx
+        model_count=args.model_count,
+        optional_params=args.optional_params,
     )
     logging.info('Created the method server and task generator')
 
