@@ -455,24 +455,24 @@ class Thinker(BaseThinker):
         
         # modified by YXX for dynamic test [scale tasks models]
         # scale
-        gpu_executor = [executor for executor in self.doer.executors if executor.label == 'gpu'][0]
-        cpu_executor = [executor for executor in self.doer.executors if executor.label == 'cpu'][0]
-        if self.loop == 1:
-            gpu_executor.scale_out(2)
-            cpu_executor.scale_out(2)
-            self.logger.info('scale out 2')
-        elif self.loop == 2:
-            gpu_executor.scale_out(4)
-            cpu_executor.scale_out(4)
-            self.logger.info('scale out 4')
-        elif self.loop == 3:
-            gpu_executor.scale_in(3)
-            cpu_executor.scale_in(3)
-            self.logger.info('scale in 1')
-        else:
-            gpu_executor.scale_out(4)
-            cpu_executor.scale_out(4)
-            self.logger.info('max scale out 4')
+        # gpu_executor = [executor for executor in self.doer.executors if executor.label == 'gpu'][0]
+        # cpu_executor = [executor for executor in self.doer.executors if executor.label == 'cpu'][0]
+        # if self.loop == 1:
+        #     gpu_executor.scale_out(2)
+        #     cpu_executor.scale_out(2)
+        #     self.logger.info('scale out 2')
+        # elif self.loop == 2:
+        #     gpu_executor.scale_out(4)
+        #     cpu_executor.scale_out(4)
+        #     self.logger.info('scale out 4')
+        # elif self.loop == 3:
+        #     gpu_executor.scale_in(3)
+        #     cpu_executor.scale_in(3)
+        #     self.logger.info('scale in 1')
+        # else:
+        #     gpu_executor.scale_out(4)
+        #     cpu_executor.scale_out(4)
+        #     self.logger.info('max scale out 4')
             
         # #TODO modify parameters for number of tasks
         # self.inference_chunks = 10
