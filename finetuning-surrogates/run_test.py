@@ -955,13 +955,14 @@ if __name__ == '__main__':
                             patience=8, reset_weights=False,
                             huber_deltas=args.huber_deltas)
     my_eval_schnet = _wrap(schnet.evaluate, device='cuda')
-    my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/lus/grand/projects/CSC249ADCD08/psi4')
+    # my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/lus/grand/projects/CSC249ADCD08/psi4')
+    my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4')
 
     # Determine which sampling method to use
     sampler_kwargs = {}
     if args.sampling_method == 'md':
         sampler = MolecularDynamics()
-        sampler_kwargs = {'timestep': 0.1, 'log_interval': 10}
+        sampler_kwargs = {'device': "cuda", 'timestep': 0.1, 'log_interval': 10}
     elif args.sampling_method == 'mctbp':
         sampler = MCTBP()
     elif args.sampling_method == 'mhm':
@@ -984,8 +985,8 @@ if __name__ == '__main__':
             config = make_config(str(out_dir))
 
             # Assign tasks to the appropriate executor
-            methods = [(f, {'executors': ['gpu']}) for f in [my_train_schnet, my_eval_schnet]]
-            methods.extend([(f, {'executors': ['cpu']}) for f in [my_run_simulation, my_run_dynamics]])
+            methods = [(f, {'executors': ['gpu']}) for f in [my_train_schnet, my_eval_schnet, my_run_dynamics]]
+            methods.extend([(f, {'executors': ['cpu']}) for f in [my_run_simulation]])
         elif args.parsl_site == "local":
             config = parsl_configs.local_parsl(str(out_dir))
             methods = [my_train_schnet, my_eval_schnet, my_run_dynamics, my_run_simulation]
