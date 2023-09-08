@@ -38,7 +38,7 @@ from fff.sampling.md import MolecularDynamics
 from fff.simulation import run_calculator
 from fff.simulation.utils import read_from_string, write_to_string
 
-from config import csecluster_RT as make_config
+from config import csecluster_RT_scale as make_config
 
 logger = logging.getLogger('main')
 
@@ -823,6 +823,7 @@ if __name__ == '__main__':
     group.add_argument("--num-frames", type=int, default=50, help="Number of frames to return per sampling run")
     group.add_argument("--energy-tolerance", type=float, default=0.1,
                        help="Maximum allowable energy different to accept results of sampling run.")
+    group.add_argument("--sampling-on-device", type=float, default="cpu", choices=["cpu", "gpu"], help="Device to run sampling on")
 
     # Parameters related to active learning
     group = parser.add_argument_group(title='Active Learning')
@@ -962,7 +963,10 @@ if __name__ == '__main__':
     sampler_kwargs = {}
     if args.sampling_method == 'md':
         sampler = MolecularDynamics()
-        sampler_kwargs = {'device': "cuda", 'timestep': 0.1, 'log_interval': 10}
+        if args.sampling_on_device == 'gpu':
+            sampler_kwargs = {'device': "cuda", 'timestep': 0.1, 'log_interval': 10}
+        else:
+            sampler_kwargs = {'device': "cpu", 'timestep': 0.1, 'log_interval': 10}
     elif args.sampling_method == 'mctbp':
         sampler = MCTBP()
     elif args.sampling_method == 'mhm':
