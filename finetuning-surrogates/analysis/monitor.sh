@@ -31,8 +31,8 @@ mpstat -P ALL 2 >> "$cpu_filename"  &
 # 获取当前时间戳，记录
 start_timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
 end_timestamp=""
-# 设置记录时间为1小时（以秒为单位）
-record_time=$((60*60))
+# 设置记录时间最长为3小时（以秒为单位）
+record_time=$((60*60*3))
 
 # 循环记录数据
 while true; do
