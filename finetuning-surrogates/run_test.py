@@ -823,7 +823,7 @@ if __name__ == '__main__':
     group.add_argument("--num-frames", type=int, default=50, help="Number of frames to return per sampling run")
     group.add_argument("--energy-tolerance", type=float, default=0.1,
                        help="Maximum allowable energy different to accept results of sampling run.")
-    group.add_argument("--sampling-on-device", type=float, default="cpu", choices=["cpu", "gpu"], help="Device to run sampling on")
+    group.add_argument("--sampling-on-device", type=str, default="cpu", choices=["cpu", "gpu"], help="Device to run sampling on")
 
     # Parameters related to active learning
     group = parser.add_argument_group(title='Active Learning')
@@ -846,6 +846,10 @@ if __name__ == '__main__':
     group.add_argument('--ps-globus-config', default=None,
                        help='Globus Endpoint config file to use with the ProxyStore Globus backend')
     group.add_argument('--no-proxies', action='store_true', help='Skip making any proxies.')
+    
+    # customize parameters
+    group = parser.add_argument_group(title='customize', description='customize parameters add by yxx')
+    group.add_argument('--work-dir', default='runs', help='work directory')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -864,7 +868,11 @@ if __name__ == '__main__':
 
     # Make the calculator
     if args.calculator == 'dft':
-        calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=64)
+        ## modified by yxx
+        ## num_threads should depend on cores and qc_workers, set 64 is not efficient 
+        # maybe num_threads can be different for different atoms
+        # calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=64)
+        calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads='max')
     elif args.calculator == 'ttm':
         from ttm.ase import TTMCalculator
 
@@ -875,7 +883,8 @@ if __name__ == '__main__':
     # Prepare the output directory and logger
     start_time = datetime.utcnow()
     params_hash = hashlib.sha256(json.dumps(run_params).encode()).hexdigest()[:6]
-    out_dir = Path('runs') / f'{args.calculator}-{args.sampling_method}-{start_time.strftime("%y%b%d-%H%M%S")}-{params_hash}'
+    # out_dir = Path('runs') / f'{args.calculator}-{args.sampling_method}-{start_time.strftime("%y%b%d-%H%M%S")}-{params_hash}'
+    out_dir = Path(args.work_dir) / f'{args.calculator}-{args.sampling_method}-{start_time.strftime("%y%b%d-%H%M%S")}-{params_hash}'
     out_dir.mkdir(parents=True)
 
     # Make a copy of the training data
