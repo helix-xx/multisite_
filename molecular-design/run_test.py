@@ -26,7 +26,7 @@ from rdkit import Chem
 from tqdm import tqdm
 from colmena.models import Result
 from colmena.queue.redis import RedisQueues
-from colmena.thinker import BaseThinker, result_processor, event_responder, task_submitter
+from colmena.thinker import BaseThinker, result_processor, event_responder, task_submitter, agent
 from colmena.thinker.resources import ResourceCounter
 from colmena.task_server import ParslTaskServer
 from qcelemental.models import OptimizationResult, AtomicResult
@@ -40,7 +40,7 @@ from moldesign.utils import get_platform_info
 from config import csecluster_RT_scale as make_config
 
 
-def run_simulation(smiles: str, n_nodes: int, spec: str = 'small_basis') -> Tuple[List[OptimizationResult], List[AtomicResult]]:
+def run_simulation(smiles: str, n_nodes: int, spec: str = 'small_basis', n_cores:int=56) -> Tuple[List[OptimizationResult], List[AtomicResult]]:
     """Run the ionization potential computation
 
     Args:
@@ -57,7 +57,7 @@ def run_simulation(smiles: str, n_nodes: int, spec: str = 'small_basis') -> Tupl
     inchi, xyz = generate_inchi_and_xyz(smiles)
 
     # Make compute spec
-    compute_config = {'nnodes': n_nodes, 'cores_per_rank': 2, 'ncores': 64}
+    compute_config = {'nnodes': n_nodes, 'cores_per_rank': 2, 'ncores': n_cores}
 
     # Get the specification and make it more resilient
     spec, code = get_qcinput_specification(spec)
@@ -188,16 +188,69 @@ class Thinker(BaseThinker):
         # Allocate all nodes that are under controlled use to simulation
         self.rec.reallocate(None, 'simulation', 'all')
         
-        ### modified by YXX
+        ## modified by YXX for control the task numbers and scaling strategy
         # get doer and call scale
         self.doer=doer
+        self.gpu_executor = [executor for executor in self.doer.config.executors if executor.label == 'gpu'][0]
+        self.cpu_executor = [executor for executor in self.doer.config.executors if executor.label == 'cpu'][0]
+        self.gpu_blocks=[self.gpu_executor.provider.init_blocks, self.gpu_executor.provider.min_blocks, self.gpu_executor.provider.max_blocks]
+        self.cpu_blocks=[self.cpu_executor.provider.init_blocks, self.cpu_executor.provider.min_blocks, self.cpu_executor.provider.max_blocks]
         # add loop and id for task
         self.loop=0
         self.rank_id=0
         # add model_count and optional_params
         self.model_count=model_count
         self.optional_params=optional_params
-
+        ## end modified
+        
+        ## modified by YXX for dynamic test [scale tasks models]
+        # #TODO modify parameters for number of tasks
+        
+        # #TODO modify model numbers
+        # self.model_count = 8
+        
+        # add cpu utilization info and gpu utilization info in parsl
+    
+            
+    # @agent
+    # def daemon_process(self) -> None:
+    #     '''
+    #     daemon thread
+    #     '''
+    #     # check how to wright a correct daemon process
+    #     while not self.done.isSet():
+    #         if self.rank_id==10:
+    #             # probably after model train, now is inference 
+    #             self.resources_ctl(2,3)
+                
+    #         if self.rank_id==50:
+    #             self.resources_ctl(2,1)
+                
+    #         if self.rank_id==150:
+    #             self.resources_ctl(2,4)
+            
+    # def resources_ctl(self, cpu_blocks:int, gpu_blocks:int) -> None:
+    #     '''
+    #     modified by yxx
+    #     dynamic change the tasks and resources while running the workflow
+    #     '''
+    #     # cpu scale
+    #     if cpu_blocks > self.cpu_blocks[0] and cpu_blocks <= self.cpu_blocks[2]:
+    #         block_ids = self.cpu_executor.scale_out(cpu_blocks-self.cpu_blocks[0])
+    #         self.logger.info(f'cpu scale out {cpu_blocks-self.cpu_blocks[0]}, block_ids:{block_ids}')
+    #     elif cpu_blocks < self.cpu_blocks[0] and cpu_blocks >= self.cpu_blocks[1]:
+    #         block_ids = self.cpu_executor.scale_in(self.cpu_blocks[0]-cpu_blocks)
+    #         self.logger.info(f'cpu scale in {self.cpu_blocks[0]-cpu_blocks}, block_ids:{block_ids}')
+            
+    #     # gpu scale
+    #     if gpu_blocks > self.gpu_blocks[0] and gpu_blocks <= self.gpu_blocks[2]:
+    #         block_ids = self.gpu_executor.scale_out(gpu_blocks-self.gpu_blocks[0])
+    #         self.logger.info(f'gpu scale out {gpu_blocks-self.gpu_blocks[0]}, block_ids:{block_ids}')
+    #     elif gpu_blocks < self.gpu_blocks[0] and gpu_blocks >= self.gpu_blocks[1]:
+    #         block_ids = self.gpu_executor.scale_in(self.gpu_blocks[0]-gpu_blocks)
+    #         self.logger.info(f'gpu scale in {self.gpu_blocks[0]-gpu_blocks}, block_ids:{block_ids}')
+        
+        
     @task_submitter(task_type='simulation')
     def submit_qc(self):
         # Wait for the first set of tasks to be available
@@ -228,6 +281,14 @@ class Thinker(BaseThinker):
                                     method='run_simulation', keep_inputs=True,
                                     topic='simulate')
             self.rank_id+=1
+            
+        ## modified by yxx
+        # change inference chunks and modules
+        # probably in loop 2
+        # self.model_count=2*self.model_count
+        # self.inference_chunks = np.array_split(self.mols, len(self.mols) // self.inference_chunk_size // 2 + 1)
+        ## end modified
+        
 
     @result_processor(topic='simulate')
     def process_outputs(self, result: Result):
@@ -319,7 +380,7 @@ class Thinker(BaseThinker):
             train_data_proxy = train_data  # No proxy
 
         for mid, model in enumerate(self.mpnns):
-            if mid <self.model_count:
+            if mid < self.model_count:
                 self.queues.send_inputs(model.get_config(),
                                         train_data_proxy,
                                         method='retrain_mpnn',
@@ -452,33 +513,6 @@ class Thinker(BaseThinker):
         self.update_complete.set()
         self.task_queue_ready.set()
         self.loop += 1
-        
-        # modified by YXX for dynamic test [scale tasks models]
-        # scale
-        # gpu_executor = [executor for executor in self.doer.executors if executor.label == 'gpu'][0]
-        # cpu_executor = [executor for executor in self.doer.executors if executor.label == 'cpu'][0]
-        # if self.loop == 1:
-        #     gpu_executor.scale_out(2)
-        #     cpu_executor.scale_out(2)
-        #     self.logger.info('scale out 2')
-        # elif self.loop == 2:
-        #     gpu_executor.scale_out(4)
-        #     cpu_executor.scale_out(4)
-        #     self.logger.info('scale out 4')
-        # elif self.loop == 3:
-        #     gpu_executor.scale_in(3)
-        #     cpu_executor.scale_in(3)
-        #     self.logger.info('scale in 1')
-        # else:
-        #     gpu_executor.scale_out(4)
-        #     cpu_executor.scale_out(4)
-        #     self.logger.info('max scale out 4')
-            
-        # #TODO modify parameters for number of tasks
-        # self.inference_chunks = 10
-        
-        # #TODO modify model numbers
-        # self.model_count = 8
 
     def _select_molecules(self, y_pred):
         """Select a list of molecules given the predictions from each model
@@ -564,6 +598,12 @@ if __name__ == '__main__':
     # Configuration for optional Parsl backend
     group = parser.add_argument_group(title='Parsl', description='Settings related to Parsl')
     group.add_argument('--use-parsl', action='store_true', help='Use Parsl instead of FuncX')
+    
+    # customize parameters
+    group = parser.add_argument_group(title='customize', description='customize parameters add by yxx')
+    group.add_argument('--work-dir', default='runs', help='work directory')
+    # group.add_argument('--threads', default='56', type=int, help='number of threads for psi4, 56 is the platform biggest cores')
+
 
     # Parse the arguments
     args = parser.parse_args()
@@ -589,9 +629,11 @@ if __name__ == '__main__':
     # Create an output directory with the time and run parameters
     start_time = datetime.utcnow()
     params_hash = hashlib.sha256(json.dumps(run_params).encode()).hexdigest()[:6]
-    out_dir = os.path.join('runs',
-                           f'{args.qc_specification}-N{args.num_qc_workers}-n{args.nodes_per_task}-{params_hash}-{start_time.strftime("%d%b%y-%H%M%S")}')
-    os.makedirs(out_dir, exist_ok=False)
+    out_dir = Path(args.work_dir) / f'{args.qc_specification}-N{args.num_qc_workers}-n{args.nodes_per_task}-{params_hash}-{start_time.strftime("%d%b%y-%H%M%S")}'
+    out_dir.mkdir(parents=True)
+    # out_dir = os.path.join('runs',
+    #                        f'{args.qc_specification}-N{args.num_qc_workers}-n{args.nodes_per_task}-{params_hash}-{start_time.strftime("%d%b%y-%H%M%S")}')
+    # os.makedirs(out_dir, exist_ok=False)
 
     # Save the run parameters to disk
     with open(os.path.join(out_dir, 'run_params.json'), 'w') as fp:
@@ -613,14 +655,19 @@ if __name__ == '__main__':
         """Filter out Parsl debug logs"""
 
         def filter(self, record):
-            return not (record.levelno == logging.DEBUG and '/parsl/' in record.pathname)
+            ## modified by yxx, no filter
+            # return not (record.levelno == logging.DEBUG and '/parsl/' in record.pathname)
+            return True
 
 
     for h in handlers:
         h.addFilter(ParslFilter())
 
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                        level=logging.INFO, handlers=handlers)
+                        # level=logging.INFO, handlers=handlers)
+                        ## modified by yxx, change to debug
+                        level=logging.DEBUG, handlers=handlers)
+                        ## end modified
     logging.info(f'Run directory: {out_dir}')
 
     # Make the PS files directory inside run directory
@@ -673,7 +720,7 @@ if __name__ == '__main__':
         from colmena.task_server import ParslTaskServer
 
         # Create the resource configuration
-        config = make_config(out_dir)
+        config = make_config(str(out_dir))
 
         # Assign tasks to the appropriate executor
         methods = [(f, {'executors': ['gpu']}) for f in [my_evaluate_mpnn, my_retrain_mpnn]]

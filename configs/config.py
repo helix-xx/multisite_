@@ -165,18 +165,19 @@ def csecluster_RT(log_dir: str) -> Config:
         executors=[
             HighThroughputExecutor(
                 label="cpu",
-                max_workers=32,
+                max_workers=8,
                 address=address_by_hostname(),
                 worker_port_range=(20000,30000),
                 worker_logdir_root='/home/lizz_lab/cse12232433/parsl-logs',
                 provider=AdHocProvider(
-                    channels=[SSHChannel(hostname='gpu006',port='22', username='cse12232433', password='Yxx!199871!', script_dir='/home/lizz_lab/cse12232433/parsl-logs')],
+                    channels=[SSHChannel(hostname='gpu005',port='22', username='cse12232433', password='Yxx!199871!', script_dir='/home/lizz_lab/cse12232433/parsl-logs'),
+                              SSHChannel(hostname='gpu006',port='22', username='cse12232433', password='Yxx!199871!', script_dir='/home/lizz_lab/cse12232433/parsl-logs')],
                     worker_init='''
                     # Activate conda environment
                     source /home/lizz_lab/cse12232433/.bashrc
                     source /home/lizz_lab/cse12232433/miniconda3/bin/activate /home/lizz_lab/cse12232433/miniconda3/envs/multisite
                     # export CUDA_VISIBLE_DEVICES=0,1,2,3
-                    bash /home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/analysis/monitor.sh
+                    # bash /home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/analysis/monitor.sh
                     which python
                     ''',
                 ),
@@ -188,14 +189,15 @@ def csecluster_RT(log_dir: str) -> Config:
                 worker_port_range=(20000,30000),
                 worker_logdir_root='/home/lizz_lab/cse12232433/parsl-logs',
                 provider=AdHocProvider(
-                    channels=[SSHChannel(hostname='gpu005',port='22', username='cse12232433', password='Yxx!199871!', script_dir='/home/lizz_lab/cse12232433/parsl-logs')],
+                    channels=[SSHChannel(hostname='gpu005',port='22', username='cse12232433', password='Yxx!199871!', script_dir='/home/lizz_lab/cse12232433/parsl-logs'),
+                              SSHChannel(hostname='gpu006',port='22', username='cse12232433', password='Yxx!199871!', script_dir='/home/lizz_lab/cse12232433/parsl-logs')],
                     worker_init='''
                     # Activate conda environment
                     source /home/lizz_lab/cse12232433/.bashrc
                     source /home/lizz_lab/cse12232433/miniconda3/bin/activate /home/lizz_lab/cse12232433/miniconda3/envs/multisite
                     export CUDA_VISIBLE_DEVICES=0,1,2,3
                     # export TF_GPU_ALLOCATOR=cuda_malloc_async
-                    bash /home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/analysis/monitor.sh
+                    # bash /home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/analysis/monitor.sh
                     which python
                     ''',
                 ),
