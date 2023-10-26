@@ -37,7 +37,7 @@ from moldesign.store.recipes import apply_recipes
 from moldesign.utils import get_platform_info
 
 # from config import theta_debug_and_venti as make_config
-from config import csecluster_RT_scale as make_config
+from config import csecluster_RT_workqueue as make_config
 
 
 def run_simulation(smiles: str, n_nodes: int, spec: str = 'small_basis', n_cores:int=56) -> Tuple[List[OptimizationResult], List[AtomicResult]]:
@@ -602,7 +602,7 @@ if __name__ == '__main__':
     # customize parameters
     group = parser.add_argument_group(title='customize', description='customize parameters add by yxx')
     group.add_argument('--work-dir', default='runs', help='work directory')
-    # group.add_argument('--threads', default='56', type=int, help='number of threads for psi4, 56 is the platform biggest cores')
+    group.add_argument('--threads', default='56', type=int, help='number of threads for psi4, 56 is the platform biggest cores')
 
 
     # Parse the arguments
@@ -616,9 +616,10 @@ if __name__ == '__main__':
     # ]
     
     # modified by YXX for loading multiple models
+    models_path = os.listdir(args.mpnn_model_path)
     models = [
     tf.keras.models.load_model(os.path.join(args.mpnn_model_path,path,"model.h5") , custom_objects=custom_objects)
-    for path in tqdm(os.listdir(args.mpnn_model_path), desc='Loading models')
+    for path in tqdm(models_path[:args.model_count], desc='Loading models')
     ]
     
 
@@ -712,7 +713,7 @@ if __name__ == '__main__':
     my_retrain_mpnn = partial(retrain_mpnn, num_epochs=args.num_epochs, learning_rate=args.learning_rate, timeout=2700)
     my_retrain_mpnn = update_wrapper(my_retrain_mpnn, retrain_mpnn)
 
-    my_run_simulation = partial(run_simulation, n_nodes=args.nodes_per_task, spec=args.qc_specification)
+    my_run_simulation = partial(run_simulation, n_nodes=args.nodes_per_task, spec=args.qc_specification, n_cores=args.threads)
     my_run_simulation = update_wrapper(my_run_simulation, run_simulation)
 
     # Create the task servers
