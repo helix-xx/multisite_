@@ -850,6 +850,7 @@ if __name__ == '__main__':
     # customize parameters
     group = parser.add_argument_group(title='customize', description='customize parameters add by yxx')
     group.add_argument('--work-dir', default='runs', help='work directory')
+    group.add_argument('--threads', default='56', type=int, help='number of threads for psi4, 56 is the platform biggest cores')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -872,7 +873,7 @@ if __name__ == '__main__':
         ## num_threads should depend on cores and qc_workers, set 64 is not efficient 
         # maybe num_threads can be different for different atoms
         # calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=64)
-        calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads='max')
+        calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=args.threads)
     elif args.calculator == 'ttm':
         from ttm.ase import TTMCalculator
 
