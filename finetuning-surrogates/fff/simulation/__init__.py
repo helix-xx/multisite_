@@ -1,5 +1,6 @@
 """Collections of Python functions for generating new training data"""
 from concurrent.futures import ProcessPoolExecutor
+import re
 from tempfile import TemporaryDirectory
 from typing import Optional, Union
 import os

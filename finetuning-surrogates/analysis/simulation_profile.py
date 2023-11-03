@@ -3,7 +3,7 @@ from fff.simulation.utils import read_from_string, write_to_string
 from _pytest.fixtures import fixture
 from ase.build import molecule
 # from memory_profiler import profile
-calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=64)
+calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=8)
 import os
 import psutil
 from functools import partial, update_wrapper
