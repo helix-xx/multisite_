@@ -3,7 +3,7 @@ from fff.simulation.utils import read_from_string, write_to_string
 from _pytest.fixtures import fixture
 from ase.build import molecule
 # from memory_profiler import profile
-calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=64)
+calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=8)
 import os
 import psutil
 from functools import partial, update_wrapper
@@ -63,8 +63,17 @@ H       8.043264389999999      3.698852060000000      4.860042570000000
     return read_from_string(xyz, 'xyz')
 # xyz = cluster()
 # xyz = write_to_string(xyz, 'xyz')
-xyz = write_to_string(atom, 'xyz')
+print(atom)
+print(len(atom))
+# print(atom.get_potential_energies())
+# xyz = write_to_string(atom, 'xyz')
+# print(xyz)
 
-my_run_simulation = _wrap(run_calculator, calc=calc, temp_path=path)
-
-my_run_simulation(xyz)
+# my_run_simulation = _wrap(run_calculator, calc=calc, temp_path=path)
+# value = my_run_simulation(xyz)
+# print(value)
+# atom = read_from_string(value, 'json')
+# xyz = write_to_string(atom, 'xyz')
+# print(xyz)
+# print(atom)
+# print(atom.get_potential_energies())

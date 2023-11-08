@@ -1,5 +1,6 @@
 """Collections of Python functions for generating new training data"""
 from concurrent.futures import ProcessPoolExecutor
+import re
 from tempfile import TemporaryDirectory
 import tempfile
 import shutil
@@ -10,10 +11,11 @@ from ase.calculators.calculator import Calculator
 from ase.calculators.psi4 import Psi4
 
 from fff.simulation.utils import write_to_string, read_from_string
+# from memory_profiler import profile
 
 CalcType = Union[Calculator, dict]
 
-
+# @profile
 def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None) -> str:
     """Run an NWChem computation on the requested cluster
 
