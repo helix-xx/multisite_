@@ -1,6 +1,8 @@
 """Collections of Python functions for generating new training data"""
 from concurrent.futures import ProcessPoolExecutor
 from tempfile import TemporaryDirectory
+import tempfile
+import shutil
 from typing import Optional, Union
 import os
 
@@ -56,3 +58,31 @@ def _run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None) -
 
         # Convert it to JSON
         return write_to_string(atoms, 'json')
+    
+    
+    ### modified by yxx
+    ## due to nfs file system, DemporaryDirectory rmtree fail by "directory not empty"
+    ## mkdir and rmtree manually
+    # with TemporaryDirectory(dir=temp_path, prefix='fff') as temp_dir:
+    # temp_dir = tempfile.mkdtemp(dir=temp_path,prefix='fff')
+    # # Execute from the temp so that the calculators do not interfere
+    # os.chdir(temp_dir)
+
+    # # Special case for Psi4 which sets the run directory on creating the object
+    # if isinstance(calc, dict):
+    #     calc = calc.copy()
+    #     assert calc.pop('calc') == 'psi4', 'only psi4 is supported for now'
+    #     calc = Psi4(**calc, directory=temp_dir, PSI_SCRATCH=temp_path)
+
+    # # Run the calculation
+    # atoms.calc = calc
+    # try:
+    #     atoms.get_forces()
+    #     atoms.get_potential_energy()
+    # except BaseException as exc:
+    #     raise ValueError(f'Calculation failed: {exc}')
+
+    # shutil.rmtree(temp_dir,ignore_errors=True)
+    # Convert it to JSON
+    # return write_to_string(atoms, 'json')
+    
