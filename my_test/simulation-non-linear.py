@@ -15,6 +15,7 @@ import pickle
 import time
 import multiprocessing as mp
 import matplotlib.pyplot as plt
+import scipy
 # from memory_profiler import profile
 
 
@@ -70,7 +71,12 @@ class my_SimulationTask:
     dft_time: Optional[dict[int,float]] = None  # Dictionary to store DFT run times for different CPU cores
     
 current_path = os.path.dirname(os.path.abspath(__file__))
-out_dir = Path(current_path) / 'temp'
+out_dir = Path(current_path) / 'non_linear_temp'
+try:
+    os.mkdir(out_dir)
+    print("creat directory: " + str(out_dir))
+except FileExistsError:
+    print("directory already exists: " + str(out_dir))
 # cpus = mp.cpu_count()
 cpus = 16
 calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpus)
@@ -79,6 +85,7 @@ calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpus
 with open(out_dir / 'task_queue_audit', 'rb') as f:
     task_queue = pickle.load(f)
 
+## test all simulation tasks for full cpu cores as prior
 task_queue_simulated = []
 for task in task_queue:
     atoms = task.atoms
@@ -95,9 +102,26 @@ for task in task_queue:
 with open(out_dir / 'task_queue_simulated', 'wb') as f:
     pickle.dump(task_queue_simulated, f)
     
-## test all simulation tasks for full cpu cores as prior
-
 
 ## test one task non-linear and predict other tasks
+task = task_queue_simulated[0]
+cpu_sets = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
+for cpu in cpu_sets:
+    atoms = task.simu_task.atoms
+    print(atoms)
+    atoms.set_center_of_mass([0,0,0])
+    xyz = write_to_string(atoms, 'xyz')
+    start = time.time()
+    value = run_calculator(xyz, calc=calc, temp_path=out_dir.as_posix(), cpus=cpu)
+    running_time = time.time() - start
+    print("running time: " + str(running_time))
+    atoms = read_from_string(value, 'json')
+    # task.simu_task.dft_energy = atoms.get_potential_energy()
+    task.simu_task.dft_time[cpu] = running_time
+    
+with open(out_dir / 'non_linear_task', 'wb') as f:
+    pickle.dump(task, f)
+
+## predict other tasks
 
 ## output arrangement for all tasks
