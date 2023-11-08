@@ -69,9 +69,11 @@ class my_SimulationTask:
     dft_energy: Optional[float] = None  # DFT energy of the structure
     dft_time: Optional[dict[int,float]] = None  # Dictionary to store DFT run times for different CPU cores
     
-    
-out_dir = Path("/home/yxx/work/project/colmena/multisite_/my_test/temp")
-calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=mp.cpu_count())
+current_path = os.path.dirname(os.path.abspath(__file__))
+out_dir = Path(current_path) / 'temp'
+# cpus = mp.cpu_count()
+cpus = 16
+calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpus)
 
 ## load pickle file for sampling atoms
 with open(out_dir / 'task_queue_audit', 'rb') as f:
@@ -88,7 +90,7 @@ for task in task_queue:
     running_time = time.time() - start
     print("running time: " + str(running_time))
     atoms = read_from_string(value, 'json')
-    task_queue_simulated.append(my_SimulationTask(simu_task=task, dft_energy=atoms.get_potential_energy(), dft_time={mp.cpu_count():running_time}))
+    task_queue_simulated.append(my_SimulationTask(simu_task=task, dft_energy=atoms.get_potential_energy(), dft_time={cpus:running_time}))
     
 with open(out_dir / 'task_queue_simulated', 'wb') as f:
     pickle.dump(task_queue_simulated, f)
