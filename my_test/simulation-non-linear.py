@@ -135,7 +135,7 @@ with open(out_dir / 'task_queue_simulated', 'rb') as f:
 cpu = 4
 calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpu)
 for task in task_queue_simulated[0:16]:
-    atoms = task.atoms
+    atoms = task.simu_task.atoms
     print(atoms)
     atoms.set_center_of_mass([0,0,0])
     xyz = write_to_string(atoms, 'xyz')
