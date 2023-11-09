@@ -1,5 +1,7 @@
+from concurrent.futures import ProcessPoolExecutor
+import concurrent.futures
 from pdb import run
-from fff.simulation import run_calculator
+from fff.simulation import run_calculator,_run_calculator
 from fff.simulation.utils import read_from_string, write_to_string
 from _pytest.fixtures import fixture
 import ase
@@ -131,20 +133,39 @@ with open(out_dir / 'task_queue_simulated', 'rb') as f:
 
 ## output arrangement for all tasks
 
-## same cores for all tasks
+## same cores for all tasks, one by one
+# cpu = 4
+# calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpu)
+# for task in task_queue_simulated[0:16]:
+#     atoms = task.simu_task.atoms
+#     print(atoms)
+#     atoms.set_center_of_mass([0,0,0])
+#     xyz = write_to_string(atoms, 'xyz')
+#     start = time.time()
+#     value = run_calculator(xyz, calc=calc, temp_path=out_dir.as_posix())
+#     running_time = time.time() - start
+#     print("running time: " + str(running_time))
+#     atoms = read_from_string(value, 'json')
+#     task.dft_time[4] = running_time
+
+# with open(out_dir / 'task_queue_simulated', 'wb') as f:
+#     pickle.dump(task_queue_simulated, f)
+    
+## same cores for all tasks, all together
 cpu = 4
 calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpu)
-for task in task_queue_simulated[0:16]:
-    atoms = task.simu_task.atoms
-    print(atoms)
-    atoms.set_center_of_mass([0,0,0])
-    xyz = write_to_string(atoms, 'xyz')
-    start = time.time()
-    value = run_calculator(xyz, calc=calc, temp_path=out_dir.as_posix())
-    running_time = time.time() - start
-    print("running time: " + str(running_time))
-    atoms = read_from_string(value, 'json')
-    task.dft_time[4] = running_time
+task_batch = task_queue_simulated[0:16]
+task_batch = sorted(task_batch, key=lambda x: len(x.simu_task.atoms))
+batch_start_time = time.time()
+with ProcessPoolExecutor(max_workers=16) as exe:
+    futures = [exe.submit(_run_calculator, str(write_to_string(task.simu_task.atoms, 'xyz')), calc, out_dir.as_posix()) for task in task_batch]
+    for task, fut in zip(task_batch, concurrent.futures.as_completed(futures)):
+        value = fut.result()
+        atoms = read_from_string(value, 'json')
+        running_time = time.time() - batch_start_time
+        task.dft_time[4] = running_time
 
-with open(out_dir / 'task_queue_simulated', 'wb') as f:
-    pickle.dump(task_queue_simulated, f)
+batch_time = time.time() - batch_start_time
+print("batch time: " + str(batch_time))
+with open(out_dir / 'task_queue_simulated_4_parrallel', 'wb') as f:
+    pickle.dump(task_batch, f)
