@@ -78,17 +78,39 @@ try:
 except FileExistsError:
     print("directory already exists: " + str(out_dir))
 # cpus = mp.cpu_count()
-cpus = 16
+cpus = 64
 calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpus)
 
 ## load pickle file for sampling atoms
-with open(out_dir / 'task_queue_audit', 'rb') as f:
-    task_queue = pickle.load(f)
+# with open(out_dir / 'task_queue_audit', 'rb') as f:
+#     task_queue = pickle.load(f)
 
-## test all simulation tasks for full cpu cores as prior
-task_queue_simulated = []
-for task in task_queue:
-    atoms = task.atoms
+# ## test all simulation tasks for full cpu cores as prior
+# task_queue_simulated = []
+# for task in task_queue:
+#     atoms = task.atoms
+#     print(atoms)
+#     atoms.set_center_of_mass([0,0,0])
+#     xyz = write_to_string(atoms, 'xyz')
+#     start = time.time()
+#     value = run_calculator(xyz, calc=calc, temp_path=out_dir.as_posix())
+#     running_time = time.time() - start
+#     print("running time: " + str(running_time))
+#     atoms = read_from_string(value, 'json')
+#     task_queue_simulated.append(my_SimulationTask(simu_task=task, dft_energy=atoms.get_potential_energy(), dft_time={cpus:running_time}))
+    
+# with open(out_dir / 'task_queue_simulated', 'wb') as f:
+#     pickle.dump(task_queue_simulated, f)
+
+with open(out_dir / 'task_queue_simulated', 'rb') as f:
+    task_queue_simulated = pickle.load(f)
+
+## test one task non-linear and predict other tasks
+task = task_queue_simulated[0]
+cpu_sets = [1,2,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64]
+for cpu in cpu_sets:
+    calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpu)
+    atoms = task.simu_task.atoms
     print(atoms)
     atoms.set_center_of_mass([0,0,0])
     xyz = write_to_string(atoms, 'xyz')
@@ -97,27 +119,8 @@ for task in task_queue:
     running_time = time.time() - start
     print("running time: " + str(running_time))
     atoms = read_from_string(value, 'json')
-    task_queue_simulated.append(my_SimulationTask(simu_task=task, dft_energy=atoms.get_potential_energy(), dft_time={cpus:running_time}))
-    
-with open(out_dir / 'task_queue_simulated', 'wb') as f:
-    pickle.dump(task_queue_simulated, f)
-    
-
-## test one task non-linear and predict other tasks
-task = task_queue_simulated[0]
-cpu_sets = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
-for cpu in cpu_sets:
-    atoms = task.simu_task.atoms
-    print(atoms)
-    atoms.set_center_of_mass([0,0,0])
-    xyz = write_to_string(atoms, 'xyz')
-    start = time.time()
-    value = run_calculator(xyz, calc=calc, temp_path=out_dir.as_posix(), cpus=cpu)
-    running_time = time.time() - start
-    print("running time: " + str(running_time))
-    atoms = read_from_string(value, 'json')
     # task.simu_task.dft_energy = atoms.get_potential_energy()
-    task.simu_task.dft_time[cpu] = running_time
+    task.dft_time[cpu] = running_time
     
 with open(out_dir / 'non_linear_task', 'wb') as f:
     pickle.dump(task, f)
