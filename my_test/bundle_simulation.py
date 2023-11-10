@@ -85,7 +85,7 @@ except FileExistsError:
 with open(out_dir / 'task_queue_simulated', 'rb') as f:
     task_queue_simulated = pickle.load(f)
     
-cpus = [1, 1, 1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 6, 6, 9, 10]
+cpus = [2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 8, 9]
 
 task_batch = task_queue_simulated[0:16]
 task_batch = sorted(task_batch, key=lambda x: len(x.simu_task.atoms))
