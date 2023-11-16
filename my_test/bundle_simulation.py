@@ -92,10 +92,10 @@ task_batch = sorted(task_batch, key=lambda x: len(x.simu_task.atoms))
 batch_start_time = time.time()
 with ProcessPoolExecutor(max_workers=16) as exe:
     futures = []
-    for cpu,index in enumerate(cpus):
+    for cpu,task in zip(cpus,task_batch):
         calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpu)
-        future = exe.submit(_run_calculator, str(write_to_string(task_batch[index].simu_task.atoms, 'xyz')), calc, out_dir.as_posix())
-        task_batch[index].temp_cores = cpu
+        future = exe.submit(_run_calculator, str(write_to_string(task.simu_task.atoms, 'xyz')), calc, out_dir.as_posix())
+        task.temp_cores = cpu
         futures.append(future)
     for task, fut in zip(task_batch, concurrent.futures.as_completed(futures)):
         value = fut.result()
