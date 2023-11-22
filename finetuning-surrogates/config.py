@@ -1,1 +1,1 @@
-./configs/config.py
+../configs/config.py
