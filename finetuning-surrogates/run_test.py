@@ -38,7 +38,7 @@ from fff.sampling.md import MolecularDynamics
 from fff.simulation import run_calculator
 from fff.simulation.utils import read_from_string, write_to_string
 
-from config import csecluster_RT_scale as make_config
+from config import csecluster1 as make_config
 
 logger = logging.getLogger('main')
 

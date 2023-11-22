@@ -2,7 +2,7 @@
 
 # 获取参数作为工作目录，如果参数为空则设置默认值
 if [ -z "$1" ]; then
-  work_dir="/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs"
+  work_dir="/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs"
 else
   work_dir="$1"
 fi
@@ -50,13 +50,13 @@ python run_test.py \
   --min-run-length 200 \
   --max-run-length 2000 \
   --num-frames 100 \
-  --num-epochs 512 \
-  --ensemble-size 8 \
+  --num-epochs 16 \
+  --ensemble-size 2 \
   --huber-deltas 1 10 \
   --infer-chunk-size 4000 \
   --infer-pool-size 1 \
   --retrain-freq 16 \
-  --num-to-run 500 \
+  --num-to-run 20 \
   --parsl \
   --no-proxies \
   --redisport 7485 \
@@ -64,5 +64,4 @@ python run_test.py \
   --train-ps-backend redis \
   --sampling-on-device gpu \
   --work-dir "$work_dir" \
-  --threads 6 \
-  --redishost gpu005
+  --threads 8 \
