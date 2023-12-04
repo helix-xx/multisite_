@@ -76,6 +76,7 @@ class my_SimulationTask:
     dft_energy: Optional[float] = None  # DFT energy of the structure
     dft_time: Optional[dict[int,float]] = None  # Dictionary to store DFT run times for different CPU cores
     temp_cores: Optional[int] = None  # Number of CPU cores used for the DFT calculation
+    start_time: Optional[int] = None
     
     
     
@@ -430,8 +431,8 @@ max_workers = 16
 
 # Convert the task list into a queue
 task_queue = deque(task_submit)
-task_batch = task_queue_audit[:24]
-start_time =[]
+# task_batch = task_queue_audit[:24]
+task_batch = [my_SimulationTask(simu_task=task_queue_audit[i]) for i in range(len(task_queue_audit))]
 
 
 with ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -447,18 +448,20 @@ with ProcessPoolExecutor(max_workers=max_workers) as executor:
             break
         # Enough CPU cores available, submit this task
         calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpu)
-        start_time.append(time.time())
-        future = executor.submit(_run_calculator, str(write_to_string(task_batch[task_id], 'xyz')), calc, out_dir.as_posix())
-        task.temp_cores = cpu
+        task_batch[task_id].start_time = time.time()
+        future = executor.submit(_run_calculator, str(write_to_string(task_batch[task_id].simu_task.atoms, 'xyz')), calc, out_dir.as_posix())
+        task_batch[task_id].temp_cores = cpu
         current_cpu_cores += cpu
         futures.append((task, future))
     for task, future in concurrent.futures.as_completed(futures):
         value = future.result()
+        cpu = task['resources']['cpu']
+        task_id = task['task_id']
         atoms = read_from_string(value, 'json')
-        running_time = time.time() - batch_start_time
-        task.dft_time[task.temp_cores] = running_time
+        running_time = time.time() - task_batch[task_id].start_time
+        task_batch[id].dft_time[task.temp_cores] = running_time
         # This task has completed, release its CPU cores
-        current_cpu_cores -= task.temp_cores
+        current_cpu_cores -= task_batch[task_id].temp_cores
         # Check if there are any tasks that can be submitted now
         while task_queue:
             task = task_queue.popleft()
@@ -468,12 +471,13 @@ with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 task_queue.append(task)
                 break
             # Submit this task and update the CPU cores counter
-            future = executor.submit(_run_calculator, str(write_to_string(task_batch[task_id], 'xyz')), calc, out_dir.as_posix())
-            task.temp_cores = cpu
+            task_batch[task_id].start_time = time.time()
+            future = executor.submit(_run_calculator, str(write_to_string(task_batch[task_id].simu_task.atoms, 'xyz')), calc, out_dir.as_posix())
+            task_batch[task_id].temp_cores = cpu
             current_cpu_cores += cpu
             futures.append((task, future))
 
 batch_time = time.time() - batch_start_time
 print("batch time: " + str(batch_time))
-with open(out_dir / 'task_queue_simulated_assign_parrallel', 'wb') as f:
+with open(out_dir / 'task_queue_simulated_ga_test', 'wb') as f:
     pickle.dump(task_batch, f)
