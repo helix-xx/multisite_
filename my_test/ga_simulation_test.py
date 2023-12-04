@@ -433,10 +433,10 @@ max_workers = 16
 task_queue = deque(task_submit)
 # task_batch = task_queue_audit[:24]
 task_batch = [my_SimulationTask(simu_task=task_queue_audit[i]) for i in range(len(task_queue_audit))]
-
+futures_map = {}
+futures = []
 
 with ProcessPoolExecutor(max_workers=max_workers) as executor:
-    futures = []
     while task_queue:
         task = task_queue.popleft()  # Remove the task from the queue
         cpu = task['resources']['cpu']
@@ -452,30 +452,40 @@ with ProcessPoolExecutor(max_workers=max_workers) as executor:
         future = executor.submit(_run_calculator, str(write_to_string(task_batch[task_id].simu_task.atoms, 'xyz')), calc, out_dir.as_posix())
         task_batch[task_id].temp_cores = cpu
         current_cpu_cores += cpu
-        futures.append((task, future))
-    for task, future in concurrent.futures.as_completed(futures):
-        value = future.result()
-        cpu = task['resources']['cpu']
-        task_id = task['task_id']
-        atoms = read_from_string(value, 'json')
-        running_time = time.time() - task_batch[task_id].start_time
-        task_batch[id].dft_time[task.temp_cores] = running_time
-        # This task has completed, release its CPU cores
-        current_cpu_cores -= task_batch[task_id].temp_cores
-        # Check if there are any tasks that can be submitted now
-        while task_queue:
-            task = task_queue.popleft()
+        futures.append(future)
+        futures_map[future] = task
+    while futures:
+        done_futures = []
+        for future in concurrent.futures.as_completed(futures):
+            done_futures.append(future)
+            task = futures_map[future]
+            value = future.result()
             cpu = task['resources']['cpu']
             task_id = task['task_id']
-            if cpu > total_cpu_cores - current_cpu_cores:
-                task_queue.append(task)
-                break
-            # Submit this task and update the CPU cores counter
-            task_batch[task_id].start_time = time.time()
-            future = executor.submit(_run_calculator, str(write_to_string(task_batch[task_id].simu_task.atoms, 'xyz')), calc, out_dir.as_posix())
-            task_batch[task_id].temp_cores = cpu
-            current_cpu_cores += cpu
-            futures.append((task, future))
+            atoms = read_from_string(value, 'json')
+            running_time = time.time() - task_batch[task_id].start_time
+            task_batch[task_id].dft_time[task_batch[task_id].temp_cores] = running_time
+            # This task has completed, release its CPU cores
+            current_cpu_cores -= task_batch[task_id].temp_cores
+            # Check if there are any tasks that can be submitted now
+            while task_queue:
+                task = task_queue.popleft()
+                cpu = task['resources']['cpu']
+                task_id = task['task_id']
+                if cpu > total_cpu_cores - current_cpu_cores:
+                    task_queue.appendleft(task)
+                    break
+                # Submit this task and update the CPU cores counter
+                task_batch[task_id].start_time = time.time()
+                calc = dict(calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=cpu)
+                future = executor.submit(_run_calculator, str(write_to_string(task_batch[task_id].simu_task.atoms, 'xyz')), calc, out_dir.as_posix())
+                task_batch[task_id].temp_cores = cpu
+                current_cpu_cores += cpu
+                futures.append(future)
+                futures_map[future] = task
+        # Remove the done futures from the list
+        for future in done_futures:
+            futures.remove(future)
 
 batch_time = time.time() - batch_start_time
 print("batch time: " + str(batch_time))
