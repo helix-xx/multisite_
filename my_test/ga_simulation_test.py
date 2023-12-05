@@ -454,6 +454,8 @@ with ProcessPoolExecutor(max_workers=max_workers) as executor:
         current_cpu_cores += cpu
         futures.append(future)
         futures_map[future] = task
+        
+        
     while futures:
         done_futures = []
         for future in concurrent.futures.as_completed(futures):
@@ -464,7 +466,8 @@ with ProcessPoolExecutor(max_workers=max_workers) as executor:
             task_id = task['task_id']
             atoms = read_from_string(value, 'json')
             running_time = time.time() - task_batch[task_id].start_time
-            task_batch[task_id].dft_time[task_batch[task_id].temp_cores] = running_time
+            # task_batch[task_id].dft_time[task_batch[task_id].temp_cores] = running_time // error code
+            task_batch[task_id].dft_time = {task_batch[task_id].temp_cores: running_time}
             # This task has completed, release its CPU cores
             current_cpu_cores -= task_batch[task_id].temp_cores
             # Check if there are any tasks that can be submitted now
