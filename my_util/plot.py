@@ -111,3 +111,17 @@ def plot_gpu_util(gpu:list[pd.DataFrame]=None) -> None:
     ax.xaxis.set_major_locator(MaxNLocator(nbins=5))  # 设置x轴刻度的最大数量为5个
     # plt.title('GPU Utilization Over Time')
     plt.grid(True)
+    
+def simple_bar_plot(idx, values, left, color, save_path=None):
+    """plot simple bar graph.
+
+    """
+    
+    fig, ax = plt.subplots(figsize=(20, 12))
+    for i in range(len(idx)):
+        ax.bar(idx[i], values[i], left=left[i], color=color[i])
+    ax.bar(idx, values, left=left, color=color)
+    plt.show()
+    
+    if save_path is not None:
+        plt.savefig(save_path)
