@@ -151,13 +151,14 @@ class evosch:
         elif task['name'] == 'inference':
             return 4
     
-    def get_available_task_id(self, task_name):
-        # TODO get available task id from hpc
-        pass
+    # def get_available_task_id(self, task_name):
+    #     # TODO get available task id from hpc
+    #     pass
 
 
 
     def estimate_simulation_time(self, task):        
+        """estimate simulation time"""
         molecule_length = self.task_queue_audit[task['task_id']].atoms.get_positions().shape[0]
         cpu_cores = 1
         
@@ -175,14 +176,14 @@ class evosch:
         pass
 
 
-    def calculate_resource_usage(self, task_allocation):
-        # used in heterogenous resources
-        total_cpu_usage, total_gpu_usage = 0, 0
-        for task, resources in task_allocation.items():
-            total_cpu_usage += resources['cpu']
-            total_gpu_usage += resources['gpu']
+    # def calculate_resource_usage(self, task_allocation):
+    #     # used in heterogenous resources
+    #     total_cpu_usage, total_gpu_usage = 0, 0
+    #     for task, resources in task_allocation.items():
+    #         total_cpu_usage += resources['cpu']
+    #         total_gpu_usage += resources['gpu']
 
-        return total_cpu_usage, total_gpu_usage
+    #     return total_cpu_usage, total_gpu_usage
 
 
     def evaluate_score(self, total_time, max_time):
@@ -190,6 +191,8 @@ class evosch:
         # maybe weight decide by utilization of resources
         weight = 0.1
         return total_time - (weight * (max_time * self.total_cpu))
+        # weight = 1
+        # return total_time - (weight * max_time)
 
     def easy_score(self, ind):
         """metric evaluate remain task schedule difficulty
@@ -198,12 +201,9 @@ class evosch:
             ind (_type_): _description_
         """
         pass
-
-    def fitness(self,ind):
-        # get total time as throughput
-        # get max task time as smallest generation time
-
-        
+    
+    def get_max_total_time(self, ind):
+        """get max total time and max time of this individual"""
         total_time = 0
         max_time = 0
         for task in ind.task_allocation:
@@ -220,12 +220,37 @@ class evosch:
             if task['name'] == "inference":
                 total_time += inference_time
                 max_time = max(max_time, inference_time)
+        
+        return total_time, max_time
+    
+    def evaluate_remain_task(self, ind):
+        """evaluate remain task schedule difficulty"""
+        if sum(ind.tasks_nums.values()) >= sum([len(value) for value in self.at.get_all().values()]):
+            return 0
+        oringin_task_nums = ind.tasks_nums
+        oringin_total_resources = ind.total_resources
+        task_nums = {k:len(v) for k ,v in self.at.get_all().items()}
+        task_nums = {key:task_nums[key] - oringin_task_nums[key]  for key in oringin_task_nums.keys()}
+        
+        m = sum(task_nums.values())/sum(oringin_task_nums.values())
+        total_resources = {k:v*m for k,v in oringin_total_resources.items()}
+        
+        remain_ind = self.generate_population(1, task_nums, total_resources)[0]
+        remain_total_time, remain_max_time = self.get_max_total_time(remain_ind)
+        score = self.evaluate_score(remain_total_time, remain_max_time)
+        return score/m
+    
+    def fitness(self,ind):
+        # get total time as throughput
+        # get max task time as smallest generation time
+        total_time, max_time = self.get_max_total_time(ind)
+        
+        
         ind.total_time = total_time
         ind.max_time = max_time
         ind.score = self.evaluate_score(total_time, max_time)
-        # TODO weights of this two metric
-        # How to measure the throughput that this batch of reduced time can increase?
-        # sum positive total time and negative max time as score
+        remain_score = self.evaluate_remain_task(ind)
+        ind.score = 0.5*remain_score+0.5*ind.score
         return ind.score
 
 
@@ -385,7 +410,7 @@ class evosch:
         
     def process_individual(self,individual):
         ## TODO for now we just keep same nums
-        if sum(individual.tasks_nums.values()) >= sum(len(value) for value in self.at.get_all()):
+        if sum(individual.tasks_nums.values()) >= sum([len(value) for value in self.at.get_all().values()]):
             return
         while(individual in self.his_population):
             self.random_add_task(individual)
@@ -438,15 +463,21 @@ if __name__ == '__main__':
     
     
     task_submit=[]
-    ga = evosch(task_queue_audit, length_times, core_times)
-    print(ga.at.get_available_task_id('simulation'))
-    best_individual = ga.run_ga(10, 5)
-    task_submit.extend(best_individual.task_allocation)
+    # at = available_task("simulation", {"simulation":[i for i in range(24)]})
+    ga = evosch(task_queue_audit, length_times, core_times,total_cpu=64,at=available_task({"simulation":[i for i in range(24)],"train":[],"sampling":[],"inference":[]}))
+    print(ga.at.get_available_task_id("simulation"))
+    while bool(sum([len(v) for v in ga.at.get_all().values()])):
+        best_individual = ga.run_ga(100, 50)
+        for task in best_individual.task_allocation:
+            ga.at.remove_task_id(task['name'],task['task_id'])
+        task_submit.extend(best_individual.task_allocation)
+        print(ga.at.get_all())
+        # print(len(task_submit))
     print(task_submit)
     ## sum cores
-    total_cpu = 0
-    for task in task_submit:
-        total_cpu += task['resources']['cpu']
-    print(total_cpu)
-    print(sum(best_individual.tasks_nums.values()))
+    # total_cpu = 0
+    # for task in task_submit:
+    #     total_cpu += task['resources']['cpu']
+    # print(total_cpu)
+    # print(sum(best_individual.tasks_nums.values()))
     pass

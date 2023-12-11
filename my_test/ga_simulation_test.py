@@ -64,34 +64,28 @@ inference_nums = 4
 trainning_time = 50
 sampling_time = 10
 inference_time = 10
-# simulation time
-# nonlinear performance for cpu cores
-# nonlinear preformance for atoms length
-with open(out_dir / 'length_time', 'rb') as fp:
-    length_times = pickle.load(fp)
-with open(out_dir / 'cpu_time', 'rb') as fp:
-    cpu_times = pickle.load(fp)
 
 
-task_submit=[]
-# at = available_task("simulation", {"simulation":[i for i in range(24)]})
-ga = evosch(task_queue_audit, length_times, core_times,total_cpu=64,at=available_task({"simulation":[i for i in range(24)]}))
-print(ga.at.get_available_task_id("simulation"))
-while bool(ga.at.get_all()):
-    best_individual = ga.run_ga(100, 50)
-    for task in best_individual.task_allocation:
-        ga.at.remove_task_id(task['name'],task['task_id'])
-    task_submit.extend(best_individual.task_allocation)
-    print(ga.at.get_all())
-    print(len(task_submit))
 
+# task_submit=[]
+# # at = available_task("simulation", {"simulation":[i for i in range(24)]})
+# ga = evosch(task_queue_audit, length_times, core_times,total_cpu=64,at=available_task({"simulation":[i for i in range(24)],"train":[],"sampling":[],"inference":[]}))
+# print(ga.at.get_available_task_id("simulation"))
+# while bool(sum([len(v) for v in ga.at.get_all().values()])):
+#     best_individual = ga.run_ga(100, 50)
+#     for task in best_individual.task_allocation:
+#         ga.at.remove_task_id(task['name'],task['task_id'])
+#     task_submit.extend(best_individual.task_allocation)
+#     print(ga.at.get_all())
+#     # print(len(task_submit))
+# print(task_submit)
+task_submit=[{'name': 'simulation', 'task_id': 23, 'resources': {'cpu': 9}}, {'name': 'simulation', 'task_id': 12, 'resources': {'cpu': 9}}, {'name': 'simulation', 'task_id': 7, 'resources': {'cpu': 8}}, {'name': 'simulation', 'task_id': 2, 'resources': {'cpu': 9}}, {'name': 'simulation', 'task_id': 14, 'resources': {'cpu': 7}}, {'name': 'simulation', 'task_id': 6, 'resources': {'cpu': 6}}, {'name': 'simulation', 'task_id': 10, 'resources': {'cpu': 7}}, {'name': 'simulation', 'task_id': 9, 'resources': {'cpu': 9}}, {'name': 'simulation', 'task_id': 16, 'resources': {'cpu': 10}}, {'name': 'simulation', 'task_id': 11, 'resources': {'cpu': 10}}, {'name': 'simulation', 'task_id': 19, 'resources': {'cpu': 9}}, {'name': 'simulation', 'task_id': 5, 'resources': {'cpu': 6}}, {'name': 'simulation', 'task_id': 18, 'resources': {'cpu': 7}}, {'name': 'simulation', 'task_id': 1, 'resources': {'cpu': 7}}, {'name': 'simulation', 'task_id': 13, 'resources': {'cpu': 6}}, {'name': 'simulation', 'task_id': 17, 'resources': {'cpu': 9}}, {'name': 'simulation', 'task_id': 20, 'resources': {'cpu': 11}}, {'name': 'simulation', 'task_id': 15, 'resources': {'cpu': 4}}, {'name': 'simulation', 'task_id': 21, 'resources': {'cpu': 9}}, {'name': 'simulation', 'task_id': 0, 'resources': {'cpu': 11}}, {'name': 'simulation', 'task_id': 22, 'resources': {'cpu': 3}}, {'name': 'simulation', 'task_id': 8, 'resources': {'cpu': 8}}, {'name': 'simulation', 'task_id': 3, 'resources': {'cpu': 17}}, {'name': 'simulation', 'task_id': 4, 'resources': {'cpu': 1}}]
 
-# task_submit = [{'name': 'simulation', 'task_id': 0, 'resources': {'cpu': 7}}, {'name': 'simulation', 'task_id': 9, 'resources': {'cpu': 9}}, {'name': 'simulation', 'task_id': 10, 'resources': {'cpu': 7}}, {'name': 'simulation', 'task_id': 20, 'resources': {'cpu': 6}}, {'name': 'simulation', 'task_id': 2, 'resources': {'cpu': 7}}, {'name': 'simulation', 'task_id': 17, 'resources': {'cpu': 4}}, {'name': 'simulation', 'task_id': 23, 'resources': {'cpu': 6}}, {'name': 'simulation', 'task_id': 12, 'resources': {'cpu': 5}}, {'name': 'simulation', 'task_id': 8, 'resources': {'cpu': 8}}, {'name': 'simulation', 'task_id': 16, 'resources': {'cpu': 8}}, {'name': 'simulation', 'task_id': 18, 'resources': {'cpu': 7}}, {'name': 'simulation', 'task_id': 11, 'resources': {'cpu': 7}}, {'name': 'simulation', 'task_id': 19, 'resources': {'cpu': 6}}, {'name': 'simulation', 'task_id': 1, 'resources': {'cpu': 5}}, {'name': 'simulation', 'task_id': 13, 'resources': {'cpu': 4}}, {'name': 'simulation', 'task_id': 21, 'resources': {'cpu': 5}}, {'name': 'simulation', 'task_id': 6, 'resources': {'cpu': 11}}, {'name': 'simulation', 'task_id': 5, 'resources': {'cpu': 5}}, {'name': 'simulation', 'task_id': 7, 'resources': {'cpu': 10}}, {'name': 'simulation', 'task_id': 3, 'resources': {'cpu': 11}}, {'name': 'simulation', 'task_id': 14, 'resources': {'cpu': 7}}, {'name': 'simulation', 'task_id': 22, 'resources': {'cpu': 2}}, {'name': 'simulation', 'task_id': 15, 'resources': {'cpu': 2}}, {'name': 'simulation', 'task_id': 4, 'resources': {'cpu': 2}}]
 
 batch_start_time = time.time()
 total_cpu_cores = 64
 current_cpu_cores = 0
-max_workers = 8
+max_workers = 16
 
 # Convert the task list into a queue
 task_queue = deque(task_submit)
@@ -103,8 +97,8 @@ futures = []
 with ProcessPoolExecutor(max_workers=max_workers) as executor:
     while task_queue:
         task = task_queue.popleft()  # Remove the task from the queue
+        cpu = 4
         # cpu = task['resources']['cpu']
-        cpu = task['resources']['cpu']
         task_id = task['task_id']
         if cpu > total_cpu_cores - current_cpu_cores:
             # Not enough CPU cores available, put the task back to the queue
@@ -127,8 +121,6 @@ with ProcessPoolExecutor(max_workers=max_workers) as executor:
             done_futures.append(future)
             task = futures_map[future]
             value = future.result()
-            # cpu = task['resources']['cpu']
-            # cpu = 8
             task_id = task['task_id']
             atoms = read_from_string(value, 'json')
             running_time = time.time() - task_batch[task_id].start_time
@@ -139,8 +131,8 @@ with ProcessPoolExecutor(max_workers=max_workers) as executor:
             # Check if there are any tasks that can be submitted now
             while task_queue:
                 task = task_queue.popleft()
-                cpu = task['resources']['cpu']
-                # cpu = 8
+                # cpu = task['resources']['cpu']
+                cpu = 4
                 task_id = task['task_id']
                 if cpu > total_cpu_cores - current_cpu_cores:
                     task_queue.appendleft(task)
@@ -159,5 +151,5 @@ with ProcessPoolExecutor(max_workers=max_workers) as executor:
 
 batch_time = time.time() - batch_start_time
 print("batch time: " + str(batch_time))
-with open(out_dir / 'task_queue_simulated_ga_test2', 'wb') as f:
+with open(out_dir / 'task_queue_simulated_ga_4cores_per_task2', 'wb') as f:
     pickle.dump(task_batch, f)
