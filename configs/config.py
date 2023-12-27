@@ -449,7 +449,7 @@ def wsl_local(log_dir: str) -> Config:
                 worker_ports=(11001, 11002),  # Hard coded to match up with SSH tunnels
                 worker_logdir_root='/home/yxx/parsl-logs',
                 provider=LocalProvider(
-                    script_dir='/home/yxx/parsl-logs',
+                    # script_dir='/home/yxx/parsl-logs',
                     worker_init='''
                     # Activate conda environment
                     source /home/yxx/miniconda3/bin/activate /home/yxx/miniconda3/envs/multisite
@@ -468,7 +468,7 @@ def wsl_local(log_dir: str) -> Config:
                     init_blocks=1,
                     min_blocks=1,
                     max_blocks=1,
-                    script_dir='/home/yxx/parsl-logs',
+                    # script_dir='/home/yxx/parsl-logs',
                     worker_init='''
                     # Activate conda environment
                     source /home/yxx/miniconda3/bin/activate /home/yxx/miniconda3/envs/multisite

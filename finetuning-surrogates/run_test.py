@@ -24,11 +24,11 @@ from colmena.thinker import BaseThinker, event_responder, result_processor, Reso
 import proxystore as ps
 import numpy as np
 import torch
-from proxystore.store import register_store
-from proxystore.store.file import FileStore
-from proxystore.store.globus import GlobusStore, GlobusEndpoints
-from proxystore.store.redis import RedisStore
-from proxystore.store.utils import get_key
+# from proxystore.store import register_store
+# from proxystore.store.file import FileStore
+# from proxystore.store.globus import GlobusStore, GlobusEndpoints
+# from proxystore.store.redis import RedisStore
+# from proxystore.store.utils import get_key
 
 from fff.learning.gc.ase import SchnetCalculator
 from fff.learning.gc.functions import GCSchNetForcefield
@@ -38,7 +38,8 @@ from fff.sampling.md import MolecularDynamics
 from fff.simulation import run_calculator
 from fff.simulation.utils import read_from_string, write_to_string
 
-from config import csecluster1 as make_config
+# from config import csecluster1 as make_config
+from config import wsl_local as make_config
 
 logger = logging.getLogger('main')
 
@@ -919,26 +920,26 @@ if __name__ == '__main__':
     shutil.copyfile(args.starting_model, out_dir / 'starting_model.pth')
 
     # Make the PS scratch directory
-    ps_file_dir = out_dir / 'proxy-store'
-    ps_file_dir.mkdir()
+    # ps_file_dir = out_dir / 'proxy-store'
+    # ps_file_dir.mkdir()
 
-    # Init only the required ProxyStore backends
-    ps_backends = {args.simulate_ps_backend, args.sample_ps_backend, args.train_ps_backend}
-    logger.info(f'Initializing ProxyStore backends: {ps_backends}')
-    if 'redis' in ps_backends:
-        store = RedisStore(name='redis', hostname=args.redishost, port=args.redisport, stats=True)
-        register_store(store)
-    if 'file' in ps_backends:
-        store = FileStore(name='file', store_dir=str(ps_file_dir.absolute()), stats=True)
-        register_store(store)
-    if 'globus' in ps_backends:
-        if args.ps_globus_config is None:
-            raise ValueError('Must specify --ps-globus-config to use the Globus ProxyStore backend')
-        endpoints = GlobusEndpoints.from_json(args.ps_globus_config)
-        store = GlobusStore(name='globus', endpoints=endpoints, stats=True, timeout=600)
-        register_store(store)
-    ps_names = {'simulate': args.simulate_ps_backend, 'sample': args.sample_ps_backend,
-                'train': args.train_ps_backend, 'infer': args.train_ps_backend}
+    # # Init only the required ProxyStore backends
+    # ps_backends = {args.simulate_ps_backend, args.sample_ps_backend, args.train_ps_backend}
+    # logger.info(f'Initializing ProxyStore backends: {ps_backends}')
+    # if 'redis' in ps_backends:
+    #     store = RedisStore(name='redis', hostname=args.redishost, port=args.redisport, stats=True)
+    #     register_store(store)
+    # if 'file' in ps_backends:
+    #     store = FileStore(name='file', store_dir=str(ps_file_dir.absolute()), stats=True)
+    #     register_store(store)
+    # if 'globus' in ps_backends:
+    #     if args.ps_globus_config is None:
+    #         raise ValueError('Must specify --ps-globus-config to use the Globus ProxyStore backend')
+    #     endpoints = GlobusEndpoints.from_json(args.ps_globus_config)
+    #     store = GlobusStore(name='globus', endpoints=endpoints, stats=True, timeout=600)
+    #     register_store(store)
+    # ps_names = {'simulate': args.simulate_ps_backend, 'sample': args.sample_ps_backend,
+    #             'train': args.train_ps_backend, 'infer': args.train_ps_backend}
     if args.no_proxies:
         ps_names = {}
         logger.info('Not making any proxies')
@@ -1057,7 +1058,7 @@ if __name__ == '__main__':
 
     # Cleanup ProxyStore backends (i.e., delete objects on the filesystem
     # for file/globus backends)
-    for ps_backend in ps_backends:
-        if ps_backend is not None:
-            ps.store.get_store(ps_backend).close()
-    logging.info('ProxyStores cleaned. Exiting now')
+    # for ps_backend in ps_backends:
+    #     if ps_backend is not None:
+    #         ps.store.get_store(ps_backend).close()
+    # logging.info('ProxyStores cleaned. Exiting now')
