@@ -877,11 +877,6 @@ if __name__ == '__main__':
     # scores = [ga.fitness(ind) for ind in population]
     # print(scores)
     
-<<<<<<< HEAD
-    # population = population[:5]
-    # scores = [ga.fitness(ind) for ind in population]
-    # print(scores)
-=======
     task_submit=[]
     # at = available_task("simulation", {"simulation":[i for i in range(24)]})
     ga = evosch(task_queue_audit, length_times, core_times,total_cpu=64,at=available_task({"simulation":[i for i in range(24)],"train":[],"sampling":[],"inference":[]}))
@@ -901,4 +896,3 @@ if __name__ == '__main__':
     # print(total_cpu)
     # print(sum(best_individual.tasks_nums.values()))
     pass
->>>>>>> ac7e1409ef81af6781d2dee24537c19653272c42

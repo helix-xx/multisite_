@@ -16,7 +16,24 @@ from fff.simulation.utils import write_to_string, read_from_string
 CalcType = Union[Calculator, dict]
 
 # @profile
-def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None) -> str:
+# def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None) -> str:
+#     """Run an NWChem computation on the requested cluster
+
+#     Args:
+#         xyz: Cluster to evaluate
+#         calc: ASE calculator to use. Either the calculator object or a dictionary describing the settings
+#             (only Psi4 supported at the moment for dict)
+#         temp_path: Base path for the scratch files
+#     Returns:
+#         Atoms after the calculation in a JSON format
+#     """
+
+#     # Some calculators do not clean up their resources well
+#     with ProcessPoolExecutor(max_workers=1) as exe:
+#         fut = exe.submit(_run_calculator, str(xyz), calc, temp_path)  # str ensures proxies are resolved
+#         return fut.result()
+    
+def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None, cpus:int = 1) -> str:
     """Run an NWChem computation on the requested cluster
 
     Args:
@@ -27,7 +44,8 @@ def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None) ->
     Returns:
         Atoms after the calculation in a JSON format
     """
-
+    if cpus > 1:
+        calc["num_threads"] = cpus
     # Some calculators do not clean up their resources well
     with ProcessPoolExecutor(max_workers=1) as exe:
         fut = exe.submit(_run_calculator, str(xyz), calc, temp_path)  # str ensures proxies are resolved
