@@ -136,11 +136,11 @@ if __name__ == '__main__':
                                   logging.StreamHandler(sys.stdout)])
     num_parallel = os.cpu_count()
     
-    with open('/home/yxx/work/project/colmena/multisite_/my_test/colmena_test/task_queue_audit', 'rb') as f:
+    with open('/home/lizz_lab/cse30019698/project/colmena/multisite_/my_test/ga_simulation_test/task_queue_audit.pkl', 'rb') as f:
         task_queue_audit = pickle.load(f)
-    with open('/home/yxx/work/project/colmena/multisite_/my_test/ga_simulation_test/length_time', 'rb') as fp:
+    with open('/home/lizz_lab/cse30019698/project/colmena/multisite_/my_test/ga_simulation_test/length_time', 'rb') as fp:
         length_times = pickle.load(fp)
-    with open('/home/yxx/work/project/colmena/multisite_/my_test/ga_simulation_test/cpu_time', 'rb') as fp:
+    with open('/home/lizz_lab/cse30019698/project/colmena/multisite_/my_test/ga_simulation_test/cpu_time', 'rb') as fp:
         core_times = pickle.load(fp)
     
     # Write the configuration
