@@ -136,13 +136,8 @@ class Thinker(BaseThinker):
         logger.info(f"simulation_completed: {self.simulation_completed}")
         if self.simulation_completed == self.simulation_nums:
             self.done.set()
+            self.has_tasks.set() # let submit agent stop
             logger.info(f"simulation_completed, done.set()")
-            # 获取当前活动的线程列表
-            threads = threading.enumerate()
-
-            # 打印线程列表信息
-            for t in threads:
-                print(t.getName())
 
 
 if __name__ == '__main__':
