@@ -112,7 +112,7 @@ class Thinker(BaseThinker):
     
     @task_submitter(task_type='simulate')
     def submit_simulattion(self):
-        while self.task_queu_audit:
+        while self.task_queue_audit:
             task = self.task_queue_audit.pop(0)
             atoms = task.atoms
             xyz = write_to_string(atoms, 'xyz')
@@ -138,11 +138,11 @@ if __name__ == '__main__':
                                   logging.StreamHandler(sys.stdout)])
     num_parallel = os.cpu_count()
     
-    with open('/home/lizz_lab/cse30019698/project/colmena/multisite_/my_test/ga_simulation_test/task_queue_audit.pkl', 'rb') as f:
+    with open('../ga_simulation_test/task_queue_audit.pkl', 'rb') as f:
         task_queue_audit = pickle.load(f)
-    with open('/home/lizz_lab/cse30019698/project/colmena/multisite_/my_test/ga_simulation_test/length_time', 'rb') as fp:
+    with open('../my_test/ga_simulation_test/length_time', 'rb') as fp:
         length_times = pickle.load(fp)
-    with open('/home/lizz_lab/cse30019698/project/colmena/multisite_/my_test/ga_simulation_test/cpu_time', 'rb') as fp:
+    with open('../my_test/ga_simulation_test/cpu_time', 'rb') as fp:
         core_times = pickle.load(fp)
     
     # Write the configuration
