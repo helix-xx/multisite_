@@ -997,7 +997,7 @@ if __name__ == '__main__':
     def _wrap(func, **kwargs):
         out = partial(func, **kwargs)
         update_wrapper(out, func)
-        return out
+        return out  
 
 
     schnet = GCSchNetForcefield()

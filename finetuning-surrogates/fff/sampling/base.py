@@ -39,7 +39,7 @@ class CalculatorBasedSampler(BaseSampler):
     """A sampler class which uses an ase :class:`~ase.calculators.calculator.Calculator` to generate energies"""
 
     def run_sampling(self, atoms: ase.Atoms, steps: int, calc: Calculator = None,
-                     device: Optional[str] = None, **kwargs) -> (ase.Atoms, list[ase.Atoms]):
+                     device: Optional[str] = None, cpu=1,gpu=0,**kwargs) -> (ase.Atoms, list[ase.Atoms]):
         """Run a sampling method
 
         Args:

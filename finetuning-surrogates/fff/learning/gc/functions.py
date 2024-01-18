@@ -41,7 +41,9 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                  model_msg: ModelMsgType,
                  atoms: list[ase.Atoms],
                  batch_size: int = 64,
-                 device: str = 'cpu') -> tuple[list[float], list[np.ndarray]]:
+                 device: str = 'cpu',
+                 cpu=1,
+                 gpu=0) -> tuple[list[float], list[np.ndarray]]:
         model = self.get_model(model_msg)
 
         # Place the model on the GPU in eval model
@@ -88,7 +90,9 @@ class GCSchNetForcefield(BaseLearnableForcefield):
               huber_deltas: (float, float) = (0.5, 1),
               energy_weight: float = 0.1,
               reset_weights: bool = False,
-              patience: int = None) -> (TorchMessage, pd.DataFrame):
+              patience: int = None,
+              cpu=1,
+              gpu=1) -> (TorchMessage, pd.DataFrame):
 
         model = self.get_model(model_msg)
 

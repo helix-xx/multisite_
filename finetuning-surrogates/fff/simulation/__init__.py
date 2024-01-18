@@ -33,7 +33,7 @@ CalcType = Union[Calculator, dict]
 #         fut = exe.submit(_run_calculator, str(xyz), calc, temp_path)  # str ensures proxies are resolved
 #         return fut.result()
     
-def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None, cpu:int = 1) -> str:
+def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None, cpu:int = 1,gpu:int = 0) -> str:
     """Run an NWChem computation on the requested cluster
 
     Args:
