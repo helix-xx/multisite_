@@ -13,6 +13,7 @@ from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
 from parsl.providers import LocalProvider
 from functools import partial, update_wrapper
 from parsl.config import Config
+import threading
 from threading import Lock, Event
 from datetime import datetime
 from typing import List, Tuple, Union, Optional, Dict, Any
@@ -135,7 +136,13 @@ class Thinker(BaseThinker):
         logger.info(f"simulation_completed: {self.simulation_completed}")
         if self.simulation_completed == self.simulation_nums:
             self.done.set()
-        
+            logger.info(f"simulation_completed, done.set()")
+            # 获取当前活动的线程列表
+            threads = threading.enumerate()
+
+            # 打印线程列表信息
+            for t in threads:
+                print(t.getName())
 
 
 if __name__ == '__main__':
