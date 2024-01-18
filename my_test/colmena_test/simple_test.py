@@ -104,14 +104,16 @@ CalcType = Union[Calculator, dict]
 #         return fut.result()
     
 class Thinker(BaseThinker):
-    def __init__(self, queues: ColmenaQueues, task_queue_audit, output_dir):
-        super().__init__(queues)
+    def __init__(self, queues: ColmenaQueues, task_queue_audit, output_dir, available_resources):
+        super().__init__(queues, available_resources)
         self.task_queue_audit = task_queue_audit
+        logger.info(f"task_queue_audit length: {len(task_queue_audit)}")
         self.output_dir = output_dir
     
     @task_submitter(task_type='simulate')
     def submit_simulattion(self):
-        for task in self.task_queue_audit:
+        while self.task_queu_audit:
+            task = self.task_queue_audit.pop(0)
             atoms = task.atoms
             xyz = write_to_string(atoms, 'xyz')
             self.queues.send_inputs(xyz, method='run_calculator', topic='simulate',
@@ -212,7 +214,7 @@ if __name__ == '__main__':
     queues.evosch.hist_data.add_data('length_times', length_times)
     queues.evosch.hist_data.add_data('core_times', core_times)
     doer = ParslTaskServer(methods, queues, config)
-    thinker = Thinker(queues, task_queue_audit, out_dir)
+    thinker = Thinker(queues, task_queue_audit[:20], out_dir, available_resources = {"cpu": 64, "gpu": 4, "memory": "128G"})
     
     try:
         logging.info("Starting the task server")

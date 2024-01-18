@@ -33,7 +33,7 @@ CalcType = Union[Calculator, dict]
 #         fut = exe.submit(_run_calculator, str(xyz), calc, temp_path)  # str ensures proxies are resolved
 #         return fut.result()
     
-def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None, cpus:int = 1) -> str:
+def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None, cpu:int = 1) -> str:
     """Run an NWChem computation on the requested cluster
 
     Args:
@@ -44,8 +44,8 @@ def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None, cp
     Returns:
         Atoms after the calculation in a JSON format
     """
-    if cpus > 1:
-        calc["num_threads"] = cpus
+    if cpu > 1:
+        calc["num_threads"] = cpu
     # Some calculators do not clean up their resources well
     with ProcessPoolExecutor(max_workers=1) as exe:
         fut = exe.submit(_run_calculator, str(xyz), calc, temp_path)  # str ensures proxies are resolved
