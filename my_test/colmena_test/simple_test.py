@@ -132,6 +132,7 @@ class Thinker(BaseThinker):
         with open(os.path.join(self.output_dir, 'simulation_results.json'), 'a') as f:
             print(result.json(),file=f)
         self.simulation_completed += 1
+        logger.info(f"simulation_completed: {self.simulation_completed}")
         if self.simulation_completed == self.simulation_nums:
             self.done.set()
         
@@ -223,7 +224,7 @@ if __name__ == '__main__':
     queues.evosch.hist_data.add_data('length_times', length_times)
     queues.evosch.hist_data.add_data('core_times', core_times)
     doer = ParslTaskServer(methods, queues, config)
-    thinker = Thinker(queues, task_queue_audit[:20], out_dir, available_resources = {"cpu": 64, "gpu": 4, "memory": "128G"})
+    thinker = Thinker(queues, task_queue_audit[:2], out_dir, available_resources = {"cpu": 64, "gpu": 4, "memory": "128G"})
     
     try:
         logging.info("Starting the task server")
