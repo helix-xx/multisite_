@@ -109,9 +109,12 @@ class Thinker(BaseThinker):
         self.task_queue_audit = task_queue_audit
         logger.info(f"task_queue_audit length: {len(task_queue_audit)}")
         self.output_dir = output_dir
+        self.has_tasks = Event()
+        self.has_tasks.set()
     
     @task_submitter(task_type='simulate')
     def submit_simulattion(self):
+        self.has_tasks.wait()
         while self.task_queue_audit:
             task = self.task_queue_audit.pop(0)
             atoms = task.atoms
@@ -120,6 +123,7 @@ class Thinker(BaseThinker):
                 keep_inputs=True,  # The XYZ file is not big
                 task_info={'traj_id': task.traj_id, 'task_type': "simulation",
                             'ml_energy': task.ml_eng, 'xyz': xyz})
+        self.has_tasks.clear()
     
     @result_processor(topic='simulate')
     def store_simulation(self, result: Result):
