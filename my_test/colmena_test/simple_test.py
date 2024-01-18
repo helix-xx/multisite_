@@ -107,6 +107,8 @@ class Thinker(BaseThinker):
     def __init__(self, queues: ColmenaQueues, task_queue_audit, output_dir, available_resources):
         super().__init__(queues, available_resources)
         self.task_queue_audit = task_queue_audit
+        self.simulation_nums = len(task_queue_audit)
+        self.simulation_completed = 0
         logger.info(f"task_queue_audit length: {len(task_queue_audit)}")
         self.output_dir = output_dir
         self.has_tasks = Event()
@@ -129,6 +131,9 @@ class Thinker(BaseThinker):
     def store_simulation(self, result: Result):
         with open(os.path.join(self.output_dir, 'simulation_results.json'), 'a') as f:
             print(result.json(),file=f)
+        self.simulation_completed += 1
+        if self.simulation_completed == self.simulation_nums:
+            self.done.set()
         
 
 
