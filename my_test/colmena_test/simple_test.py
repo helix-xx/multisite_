@@ -140,9 +140,9 @@ if __name__ == '__main__':
     
     with open('../ga_simulation_test/task_queue_audit.pkl', 'rb') as f:
         task_queue_audit = pickle.load(f)
-    with open('../my_test/ga_simulation_test/length_time', 'rb') as fp:
+    with open('../ga_simulation_test/length_time', 'rb') as fp:
         length_times = pickle.load(fp)
-    with open('../my_test/ga_simulation_test/cpu_time', 'rb') as fp:
+    with open('../ga_simulation_test/cpu_time', 'rb') as fp:
         core_times = pickle.load(fp)
     
     # Write the configuration
