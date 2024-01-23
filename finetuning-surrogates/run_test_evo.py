@@ -1009,7 +1009,7 @@ if __name__ == '__main__':
                             huber_deltas=args.huber_deltas)
     my_eval_schnet = _wrap(schnet.evaluate, device='cuda')
     # my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/lus/grand/projects/CSC249ADCD08/psi4')
-    my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4')
+    my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/psi4')
 
     # Determine which sampling method to use
     sampler_kwargs = {}
