@@ -272,6 +272,7 @@ class Thinker(BaseThinker):
                 self.starting_model_proxy,
                 train_set,
                 valid_sets[i],
+                keep_inputs=True,
                 method='train',
                 topic='train',
                 task_info={'model_id': i, 'training_round': self.training_round, 'train_size': len(all_examples)}
@@ -394,6 +395,7 @@ class Thinker(BaseThinker):
             starting_point,
             self.run_length,
             self.active_model_proxy,
+            keep_inputs=True,
             method='run_sampling',
             topic='sample',
             task_info={'traj_id': trajectory.id, 'run_length': self.run_length}
@@ -498,7 +500,7 @@ class Thinker(BaseThinker):
             # Submit inference for each model
             for model_id, model_msg in enumerate(self.inference_proxies):
                 self.queues.send_inputs(
-                    model_msg, inf_proxy, method='evaluate', topic='infer',
+                    model_msg, inf_proxy, keep_inputs=True, method='evaluate', topic='infer',
                     task_info={'model_id': model_id, 'infer_id': self.inference_round}
                 )
 

@@ -50,7 +50,7 @@ python run_test_evo.py \
   --min-run-length 200 \
   --max-run-length 2000 \
   --num-frames 100 \
-  --num-epochs 16 \
+  --num-epochs 1 \
   --ensemble-size 2 \
   --huber-deltas 1 10 \
   --infer-chunk-size 4000 \
