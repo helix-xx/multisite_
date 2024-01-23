@@ -863,41 +863,6 @@ if __name__ == '__main__':
     with connect(args.training_set) as db:
         assert len(db) > 0
         pass
-    
-    # add simulation history data
-    import pickle
-    with open('../my_test/ga_simulation_test/length_time', 'rb') as fp:
-        length_times = pickle.load(fp)
-    with open('../my_test/ga_simulation_test/cpu_time', 'rb') as fp:
-        core_times = pickle.load(fp)
-    
-    # def estimate methods    
-    def estimate_trainning_time(task, his=None, queue=None):
-        return 10
-
-    def estimate_sampling_time(task, his=None, queue=None):
-        return 10
-
-    def estimate_simulation_time(task, his=None, queue=None):
-        molecule_length = int(queue.result_list[task['task_id']].inputs[0][0].split('\n')[0])
-        cpu_cores = task['resources']['cpu']
-        length_times = his['length_times']
-        core_times = his['core_times']
-        # logger.info(f"molecule_length: {molecule_length}, cpu_cores: {cpu_cores}")
-        # logger.info(f"length_times: {length_times}, core_times: {core_times}")
-        closest_length = min(length_times.keys(), key=lambda x: abs(x-molecule_length))
-        length_time = length_times[closest_length]
-
-        closest_cores = min(core_times.keys(), key=lambda x: abs(x-cpu_cores))
-        core_time = core_times[closest_cores]
-
-        return length_time*core_time/40
-
-    def estimate_inference_time(task, his=None, queue=None):
-        return 10
-    
-    # topics=['simulate', 'sample', 'train', 'infer']
-    estimate_methods = {'train': estimate_trainning_time, 'sample': estimate_sampling_time, 'simulate': estimate_simulation_time, 'infer': estimate_inference_time}
 
     # Get the hash of the training data and model
     with open(args.training_set, 'rb') as fp:
@@ -989,17 +954,13 @@ if __name__ == '__main__':
                          serialization_method='pickle',
                          keep_inputs=False,
                          proxystore_name=ps_names,
-                         proxystore_threshold=args.ps_threshold,
-                         estimate_methods=estimate_methods)
-    
-    queues.evosch.hist_data.add_data('length_times', length_times)
-    queues.evosch.hist_data.add_data('core_times', core_times)
+                         proxystore_threshold=args.ps_threshold)
 
     # Apply wrappers to functions that will be used to fix certain requirements
     def _wrap(func, **kwargs):
         out = partial(func, **kwargs)
         update_wrapper(out, func)
-        return out  
+        return out
 
 
     schnet = GCSchNetForcefield()
