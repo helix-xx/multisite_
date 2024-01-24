@@ -1096,6 +1096,14 @@ if __name__ == '__main__':
     # Wait for the method server to complete
     doer.join()
     logging.info('Task server has completed')
+    
+    import os
+
+    # 获取当前任务的ID
+    job_id = os.environ.get('SLURM_JOB_ID')
+
+    # 发送scancel命令来结束当前任务
+    os.system(f'scancel {job_id}')
 
     # Cleanup ProxyStore backends (i.e., delete objects on the filesystem
     # for file/globus backends)
