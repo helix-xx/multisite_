@@ -202,7 +202,7 @@ def csecluster1_wq(log_dir: str) -> Config:
                     ''',
                 ),
             ),
-            workQueueExecutor(
+            WorkQueueExecutor(
                 address=address_by_hostname(),
                 label="gpu",
                 shared_fs=True,
