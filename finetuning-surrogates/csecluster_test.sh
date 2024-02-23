@@ -64,4 +64,4 @@ python run_test_wq.py \
   --train-ps-backend redis \
   --sampling-on-device gpu \
   --work-dir "$work_dir" \
-  --threads 8 \
+  --threads 32 \
