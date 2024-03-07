@@ -1,5 +1,5 @@
 #!/bin/bash
-
+export TMPDIR=/home/lizz_lab/cse30019698/tmp
 # 获取参数作为工作目录，如果参数为空则设置默认值
 if [ -z "$1" ]; then
   work_dir="/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs"
@@ -46,7 +46,7 @@ python run_test_evo.py \
   --training-set ../data/forcefields/starting-model/initial-database.db \
   --search-space ../data/forcefields/starting-model/initial-database.db \
   --starting-model ../data/forcefields/starting-model/starting-model \
-  --num-qc-workers 8 \
+  --num-qc-workers 32 \
   --min-run-length 200 \
   --max-run-length 2000 \
   --num-frames 100 \
