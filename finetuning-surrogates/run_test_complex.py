@@ -136,7 +136,7 @@ class Thinker(BaseThinker):
         super().__init__(queues)
 
         # Save key configuration
-        # self.n_qc_workers = n_qc_workers
+        self.n_qc_workers = n_qc_workers
         self.db_path = db_path
         self.starting_model = model
         self.n_models = n_models
