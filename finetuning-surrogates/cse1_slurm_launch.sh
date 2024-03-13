@@ -9,7 +9,7 @@
 #SBATCH --time=10:00:00       
 
 ## description here 
-job_desc="test on cse1" 
+job_desc="test on cse1, test complex workflow" 
 
 echo "Started at $(date +'%Y%m%d_%H%M%S')"
 proj_dir="/home/lizz_lab/cse30019698/project/colmena/multisite_"

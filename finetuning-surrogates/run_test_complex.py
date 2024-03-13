@@ -131,14 +131,14 @@ class Thinker(BaseThinker):
             ps_names: Mapping of task type to ProxyStore object associated with it
         """
         # Make the resource tracker
-        rec = ResourceCounter(n_qc_workers, ['sample', 'simulate'])
-        super().__init__(queues, resource_counter=rec)
+        # rec = ResourceCounter(n_qc_workers, ['sample', 'simulate'])
+        # super().__init__(queues, resource_counter=rec)
+        super().__init__(queues)
 
         # Save key configuration
-        self.n_qc_workers = n_qc_workers
+        # self.n_qc_workers = n_qc_workers
         self.db_path = db_path
         self.starting_model = model
-        self.ps_names = ps_names
         self.n_models = n_models
         self.out_dir = out_dir
         self.energy_tolerance = energy_tolerance
@@ -173,6 +173,7 @@ class Thinker(BaseThinker):
         self.starting_model_proxy = TorchMessage(self.starting_model)
 
         self.active_model_proxy = SchnetCalculator(self.starting_model)
+        self.active_model_proxies: list[SchnetCalculator] = [self.active_model_proxy] * self.n_models
 
         # Proxies for the inference models
         self.inference_proxies: list[None] = [None] * self.n_models  # None until first trained
@@ -183,6 +184,14 @@ class Thinker(BaseThinker):
         self.start_training = Event()  # Starts training on the latest data
         self.training_complete = Event()
         self.active_updated = False  # Whether the active model has already been updated for this batch
+        self.model_updated = {}
+        self.sample_counts = {}
+        self.simulation_counts = 0
+        self.simulation_submit_ready = Event()
+        for i in range(self.n_models):
+            self.model_updated[i] = False
+            self.sample_counts[i] = 0
+        
         self.sampling_ready = Event()  # Starts sampling only after the first models are read
         self.inference_ready = Event()  # Starts inference only after all models are ready
 
@@ -196,7 +205,7 @@ class Thinker(BaseThinker):
 
         # Initialize the system settings
         self.start_training.set()  # Start by training the model
-        self.rec.reallocate(None, 'sample', n_qc_workers)  # Start with all devoted to sampling
+        # self.rec.reallocate(None, 'sample', n_qc_workers)  # Start with all devoted to sampling
 
     @event_responder(event_name='start_training')
     def train_models(self):
@@ -206,6 +215,7 @@ class Thinker(BaseThinker):
         self.training_round += 1
         self.logger.info(f'Started training batch {self.training_round}')
         self.active_updated = False
+        self.model_updated = {i: False for i in range(self.n_models)}
 
         # Load in the training dataset
         with connect(self.db_path) as db:
@@ -267,14 +277,22 @@ class Thinker(BaseThinker):
                 print(json.dumps(train_log.to_dict(orient='list')), file=fp)
 
             # Update the "active" model
-            if not self.active_updated:
-                # Update the active model
-                self.active_model_proxy = SchnetCalculator(model_msg.get_model())
-                self.active_updated = True
-                self.logger.info('Updated the active model')
+            # if not self.active_updated:
+            #     # Update the active model
+            #     self.active_model_proxy = SchnetCalculator(model_msg.get_model())
+            #     self.active_updated = True
+            #     self.logger.info('Updated the active model')
 
-                # Signals that inference can start now that we've saved one model
+            #     # Signals that inference can start now that we've saved one model
+            #     # set per model
+            #     self.sampling_ready.set()
+            
+            if not self.model_updated[model_id]:
+                self.active_model_proxies[model_id] = SchnetCalculator(model_msg.get_model())
+                self.model_updated[model_id] = True
+                self.logger.info(f'Model {model_id} has been updated')
                 self.sampling_ready.set()
+
 
             self.inference_proxies[model_id] = model_msg
 
@@ -302,46 +320,61 @@ class Thinker(BaseThinker):
 
         self.logger.info('TIMING - End store_models')
 
-    @task_submitter(task_type='sample')
+    @task_submitter(task_type='sample', enable_allocate=False)
     def submit_sampler(self):
         """Perform molecular dynamics to generate new structures"""
         self.logger.info('TIMING - Start submit_sampler')
         self.sampling_ready.wait()
+        # if all model need update, submit enough task, clear the flag
+        for model_id, updated in self.model_updated.items():
+            if not updated:
+                break
+            while(self.sample_counts[model_id]<self.retrain_freq):
+                active_model_proxy = self.active_model_proxies[model_id]
+                # Pick the next eligible trajectory and start from the last validated structure
+                trajectory = self.search_space.popleft()
+                starting_point = trajectory.starting
 
-        # Pick the next eligible trajectory and start from the last validated structure
-        trajectory = self.search_space.popleft()
-        starting_point = trajectory.starting
+                # Initialize the structure if need be
+                if trajectory.current_timestep == 0:
+                    MaxwellBoltzmannDistribution(starting_point, temperature_K=100)
+                    self.logger.info('Initialized temperature to 100K')
 
-        # Initialize the structure if need be
-        if trajectory.current_timestep == 0:
-            MaxwellBoltzmannDistribution(starting_point, temperature_K=100)
-            self.logger.info('Initialized temperature to 100K')
+                # Add the structure to a list of those being validated
+                self.to_audit[trajectory.id] = trajectory
 
-        # Add the structure to a list of those being validated
-        self.to_audit[trajectory.id] = trajectory
+                # Determine the run length based on observations of errors
+                if len(self.audit_results) > self.n_qc_workers:
+                    # Predict run length given audit error
+                    error_per_step = np.median(self.audit_results)
+                    target_error = self.energy_tolerance * 2
+                    estimated_run_length = int(target_error / error_per_step)
+                    self.logger.info(f'Estimated run length of {estimated_run_length} steps to have an error of {target_error:.3f} eV/atom')
+                    self.run_length = max(self.min_run_length, min(self.max_run_length, estimated_run_length))  # Keep to within the user-defined bounds
 
-        # Determine the run length based on observations of errors
-        if len(self.audit_results) > self.n_qc_workers:
-            # Predict run length given audit error
-            error_per_step = np.median(self.audit_results)
-            target_error = self.energy_tolerance * 2
-            estimated_run_length = int(target_error / error_per_step)
-            self.logger.info(f'Estimated run length of {estimated_run_length} steps to have an error of {target_error:.3f} eV/atom')
-            self.run_length = max(self.min_run_length, min(self.max_run_length, estimated_run_length))  # Keep to within the user-defined bounds
-
-        # Submit it with the latest model
-        self.logger.info(f'Running trajectory {trajectory.id} for {self.run_length} steps '
-                         f'starting at {trajectory.current_timestep}')
-        self.queues.send_inputs(
-            starting_point,
-            self.run_length,
-            self.active_model_proxy,
-            keep_inputs=True,
-            method='run_sampling',
-            topic='sample',
-            task_info={'traj_id': trajectory.id, 'run_length': self.run_length}
-        )
-        self.logger.info('TIMING - Finish submit_sampler')
+                # Submit it with the latest model
+                self.logger.info(f'Running trajectory {trajectory.id} for {self.run_length} steps '
+                                f'starting at {trajectory.current_timestep}')
+                self.queues.send_inputs(
+                    starting_point,
+                    self.run_length,
+                    active_model_proxy,
+                    keep_inputs=True,
+                    method='run_sampling',
+                    topic='sample',
+                    task_info={'traj_id': trajectory.id, 'run_length': self.run_length}
+                )
+                self.logger.info('TIMING - Finish submit_sampler')
+                
+                self.sample_counts[model_id] += 1
+                if self.sample_counts[model_id] >= self.retrain_freq:
+                    self.model_updated[model_id] = False
+                    self.sample_counts[model_id] = 0
+        
+        if all(value == 0 for value in self.model_updated.values()):
+            self.sampling_ready.clear()
+            self.logger.info('All models have submit samples. Sampling is now paused')
+                
 
     def _log_queue_sizes(self):
         """Log the size fo the result queues"""
@@ -356,13 +389,13 @@ class Thinker(BaseThinker):
         self.logger.info(f'Received sampling result for trajectory {traj_id}. Success: {result.success}')
 
         # Determine whether we should re-allocate resources
-        if len(self.task_queue_audit) > self.n_qc_workers * 2 and \
-                self.rec.allocated_slots('sample') > 0 and \
-                not self.reallocating.is_set():
-            self.reallocating.set()
-            self.logger.info('We have enough sampling tasks, reallocating resources to simulation')
-            self.rec.reallocate('sample', 'simulate', 1, block=False, callback=self.reallocating.clear)
-        self.rec.release('sample', 1)
+        # if len(self.task_queue_audit) > self.n_qc_workers * 2 and \
+        #         self.rec.allocated_slots('sample') > 0 and \
+        #         not self.reallocating.is_set():
+        #     self.reallocating.set()
+        #     self.logger.info('We have enough sampling tasks, reallocating resources to simulation')
+        #     self.rec.reallocate('sample', 'simulate', 1, block=False, callback=self.reallocating.clear)
+        # self.rec.release('sample', 1)
 
         # If successful, submit the structures for auditing
         if result.success:
@@ -572,11 +605,11 @@ class Thinker(BaseThinker):
 
         return output
 
-    @task_submitter(task_type="simulate")
+    @task_submitter(task_type="simulate", enable_allocate=False)
     def submit_simulation(self):
         """Submit a new simulation to check results from sampling/gather new training data"""
         self.logger.info('TIMING - Start submit_simulation')
-
+        # add logic, each run submit num_modls*retrain_freq numbers of task
         # Get a simulation to run
         to_run = None
         task_type = None
@@ -614,6 +647,12 @@ class Thinker(BaseThinker):
                                 task_info={'traj_id': to_run.traj_id, 'task_type': task_type,
                                            'ml_energy': to_run.ml_eng, 'xyz': xyz})
         self.logger.info('TIMING - Finish submit_simulation')
+        # self.simulation_counts += 1
+        # we now just submit all simulation
+        # if self.simulation_counts == self.n_models * self.retrain_freq:
+        #     self.simulation_counts == 0
+        #     # clear task_queue_active
+        #     # self.task_queue_active = []
 
     @result_processor(topic='simulate')
     def store_simulation(self, result: Result):
@@ -625,13 +664,13 @@ class Thinker(BaseThinker):
         self.logger.info(f'Received a simulation from trajectory {traj_id}. Success: {result.success}')
 
         # Reallocate resources if the task queue is getting too small
-        if len(self.task_queue_audit) <= self.n_qc_workers and \
-                self.rec.allocated_slots('simulate') > 0 and \
-                not self.reallocating.is_set():
-            self.reallocating.set()
-            self.logger.info('Running low on simulation tasks. Reallocating to sampling')
-            self.rec.reallocate('simulate', 'sample', 1, block=False, callback=self.reallocating.clear)
-        self.rec.release('simulate', 1)
+        # if len(self.task_queue_audit) <= self.n_qc_workers and \
+        #         self.rec.allocated_slots('simulate') > 0 and \
+        #         not self.reallocating.is_set():
+        #     self.reallocating.set()
+        #     self.logger.info('Running low on simulation tasks. Reallocating to sampling')
+        #     self.rec.reallocate('simulate', 'sample', 1, block=False, callback=self.reallocating.clear)
+        # self.rec.release('simulate', 1)
 
         # Store the result in the database if successful
         task_type = result.task_info['task_type']

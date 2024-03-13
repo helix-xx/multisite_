@@ -40,23 +40,23 @@ fi
     ## redisport 7485->7486(test)
 
     ## baseline
-python run_test_evo.py \
+python run_test_complex.py \
   --ml-endpoint db55e9cc-ec32-47d6-a6ff-ecd45776d276 \
   --qc-endpoint 698fba9a-4b12-4e0b-b83a-be6ded509946 \
   --training-set ../data/forcefields/starting-model/initial-database.db \
   --search-space ../data/forcefields/starting-model/initial-database.db \
   --starting-model ../data/forcefields/starting-model/starting-model \
-  --num-qc-workers 32 \
+  --num-qc-workers 8 \
   --min-run-length 200 \
   --max-run-length 2000 \
   --num-frames 100 \
-  --num-epochs 1 \
-  --ensemble-size 2 \
+  --num-epochs 512 \
+  --ensemble-size 6 \
   --huber-deltas 1 10 \
   --infer-chunk-size 4000 \
   --infer-pool-size 1 \
   --retrain-freq 16 \
-  --num-to-run 20 \
+  --num-to-run 100 \
   --parsl \
   --no-proxies \
   --redisport 7485 \
