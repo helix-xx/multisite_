@@ -50,13 +50,13 @@ python run_test_complex.py \
   --min-run-length 200 \
   --max-run-length 2000 \
   --num-frames 100 \
-  --num-epochs 512 \
+  --num-epochs 1 \
   --ensemble-size 6 \
   --huber-deltas 1 10 \
-  --infer-chunk-size 4000 \
+  --infer-chunk-size 400 \
   --infer-pool-size 1 \
-  --retrain-freq 16 \
-  --num-to-run 100 \
+  --retrain-freq 4 \
+  --num-to-run 50 \
   --parsl \
   --no-proxies \
   --redisport 7485 \

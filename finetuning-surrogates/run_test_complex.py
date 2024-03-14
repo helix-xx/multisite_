@@ -18,7 +18,7 @@ import sys
 import ase
 from ase.db import connect
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
-from colmena.models import Result
+from colmena.models import Result, ResourceRequirements
 from colmena.queue import ColmenaQueues
 from colmena.queue.redis import RedisQueues
 from colmena.thinker import BaseThinker, event_responder, result_processor, ResourceCounter, task_submitter
@@ -247,7 +247,8 @@ class Thinker(BaseThinker):
                 keep_inputs=True,
                 method='train',
                 topic='train',
-                task_info={'model_id': i, 'training_round': self.training_round, 'train_size': len(all_examples)}
+                task_info={'model_id': i, 'training_round': self.training_round, 'train_size': len(all_examples)},
+                resources=ResourceRequirements(cpu=1, gpu=1)
             )
             self.training_incomplete += 1
         self.logger.info('TIMING - Finish train_models')
@@ -290,6 +291,7 @@ class Thinker(BaseThinker):
             if not self.model_updated[model_id]:
                 self.active_model_proxies[model_id] = SchnetCalculator(model_msg.get_model())
                 self.model_updated[model_id] = True
+                self.sample_counts[model_id] = 0
                 self.logger.info(f'Model {model_id} has been updated')
                 self.sampling_ready.set()
 
@@ -328,7 +330,7 @@ class Thinker(BaseThinker):
         # if all model need update, submit enough task, clear the flag
         for model_id, updated in self.model_updated.items():
             if not updated:
-                break
+                continue
             while(self.sample_counts[model_id]<self.retrain_freq):
                 active_model_proxy = self.active_model_proxies[model_id]
                 # Pick the next eligible trajectory and start from the last validated structure
@@ -362,18 +364,20 @@ class Thinker(BaseThinker):
                     keep_inputs=True,
                     method='run_sampling',
                     topic='sample',
-                    task_info={'traj_id': trajectory.id, 'run_length': self.run_length}
+                    task_info={'traj_id': trajectory.id, 'run_length': self.run_length},
+                    resources=ResourceRequirements(cpu=1, gpu=1)
                 )
-                self.logger.info('TIMING - Finish submit_sampler')
+                # self.logger.info('TIMING - Finish submit_sampler')
                 
                 self.sample_counts[model_id] += 1
-                if self.sample_counts[model_id] >= self.retrain_freq:
-                    self.model_updated[model_id] = False
-                    self.sample_counts[model_id] = 0
-        
-        if all(value == 0 for value in self.model_updated.values()):
+            if self.sample_counts[model_id] >= self.retrain_freq:
+                self.model_updated[model_id] = False
+                self.logger.info(f'Model: {model_id} finish submit_sampler')
+    
+        if all(value == False for value in self.model_updated.values()):
             self.sampling_ready.clear()
-            self.logger.info('All models have submit samples. Sampling is now paused')
+            self.sampling_ready.wait()
+            self.logger.info('no model updated, stop sampling')
                 
 
     def _log_queue_sizes(self):
@@ -468,7 +472,8 @@ class Thinker(BaseThinker):
             for model_id, model_msg in enumerate(self.inference_proxies):
                 self.queues.send_inputs(
                     model_msg, inf_chunk, keep_inputs=True, method='evaluate', topic='infer',
-                    task_info={'model_id': model_id, 'infer_id': self.inference_round}
+                    task_info={'model_id': model_id, 'infer_id': self.inference_round},
+                    resources=ResourceRequirements(cpu=1, gpu=1)
                 )
 
             # Increment the inference chunk ID
@@ -645,7 +650,9 @@ class Thinker(BaseThinker):
         self.queues.send_inputs(xyz, method='run_calculator', topic='simulate',
                                 keep_inputs=True,  # The XYZ file is not big
                                 task_info={'traj_id': to_run.traj_id, 'task_type': task_type,
-                                           'ml_energy': to_run.ml_eng, 'xyz': xyz})
+                                           'ml_energy': to_run.ml_eng, 'xyz': xyz},
+                                resources=ResourceRequirements(cpu=8, gpu=0)
+                                )
         self.logger.info('TIMING - Finish submit_simulation')
         # self.simulation_counts += 1
         # we now just submit all simulation
@@ -991,6 +998,7 @@ if __name__ == '__main__':
         thinker.join()
         logging.info('Task generator has completed')
     finally:
+        # save task submit seq and run seq
         queues.send_kill_signal()
 
     # Wait for the method server to complete
