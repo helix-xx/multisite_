@@ -61,4 +61,12 @@ ssh $node \
     ./analysis/monitor.sh ${run_dir} & \
     ./csecluster_test.sh ${run_dir}  "
 
+# cleanning and kill
+mv /tmp/${USER}* ~/tmp/
+echo "tmp file move to ~/tmp, please check and remove them" >> $log_file
+
 echo "Completed at $(date +%Y%m%d_%H%M%S)" >> $log_file
+
+user_job_id=$(squeue -u $USER -o "%.18i" | grep -v JOBID | awk '{print $1}')
+echo "current task ID is:$user_job_id"
+scancel $user_job_id
