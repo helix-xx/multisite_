@@ -1,11 +1,14 @@
 #!/bin/bash
-export TMPDIR=/home/lizz_lab/cse30019698/tmp
+# export PSI_SCRATCH="/home/lizz_lab/cse30019698/tmp"
 # 获取参数作为工作目录，如果参数为空则设置默认值
 if [ -z "$1" ]; then
   work_dir="/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs"
 else
   work_dir="$1"
 fi
+
+# delete psi4 temp files
+rm -r /tmp/psi*
 # Test for the local system
 # python run_test.py \
 #     --ml-endpoint db55e9cc-ec32-47d6-a6ff-ecd45776d276 \
@@ -65,3 +68,16 @@ python run_test_complex.py \
   --sampling-on-device gpu \
   --work-dir "$work_dir" \
   --threads 8 \
+
+echo "Completed at $(date +%Y%m%d_%H%M%S)" 
+
+# delete psi4 temp files
+rm -r /tmp/psi*
+
+# cleanning and kill
+find /tmp -user $USER -exec mv -t /home/lizz_lab/cse30019698/tmp {} +
+echo "tmp file move to ~/tmp, please check and remove them" >> $log_file
+
+user_job_id=$(squeue -u $USER -o "%.18i" | grep -v JOBID | awk '{print $1}')
+echo "current task ID is:$user_job_id"
+scancel $user_job_id

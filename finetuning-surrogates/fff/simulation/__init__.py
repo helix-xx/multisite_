@@ -44,7 +44,7 @@ def run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None, cp
     Returns:
         Atoms after the calculation in a JSON format
     """
-    if cpu > 1:
+    if calc["num_threads"] != cpu:
         calc["num_threads"] = cpu
     # Some calculators do not clean up their resources well
     with ProcessPoolExecutor(max_workers=1) as exe:
@@ -60,12 +60,13 @@ def _run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None) -
 
     with TemporaryDirectory(dir=temp_path, prefix='fff') as temp_dir:
         # Execute from the temp so that the calculators do not interfere
-        os.chdir(temp_dir)
 
         # Special case for Psi4 which sets the run directory on creating the object
         if isinstance(calc, dict):
             calc = calc.copy()
             assert calc.pop('calc') == 'psi4', 'only psi4 is supported for now'
+            # calc = Psi4(**calc, directory=temp_dir, PSI_SCRATCH=temp_path)
+            # print(f"temp_dir {temp_dir}, temp_path {temp_path}")
             calc = Psi4(**calc, directory=temp_dir, PSI_SCRATCH=temp_path)
 
         # Run the calculation

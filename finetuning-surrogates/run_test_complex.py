@@ -14,6 +14,7 @@ import argparse
 import shutil
 import json
 import sys
+import os
 
 import ase
 from ase.db import connect
@@ -917,7 +918,9 @@ if __name__ == '__main__':
                             patience=8, reset_weights=False,
                             huber_deltas=args.huber_deltas)
     my_eval_schnet = _wrap(schnet.evaluate, device='cuda')
-    my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/psi4')
+    if not os.path.exists('/tmp/psi4'):
+        os.mkdir('/tmp/psi4')
+    my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/tmp/psi4')
 
     # Determine which sampling method to use
     sampler_kwargs = {}
@@ -1004,8 +1007,6 @@ if __name__ == '__main__':
     # Wait for the method server to complete
     doer.join()
     logging.info('Task server has completed')
-    
-    import os
 
     # in slurm get current job id and kill
     job_id = os.environ.get('SLURM_JOB_ID')

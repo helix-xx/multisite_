@@ -13,11 +13,12 @@ import argparse
 import shutil
 import json
 import sys
-
+import os
+    
 import ase
 from ase.db import connect
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
-from colmena.models import Result
+from colmena.models import Result, ResourceRequirements
 from colmena.queue import ColmenaQueues
 from colmena.queue.redis import RedisQueues
 from colmena.thinker import BaseThinker, event_responder, result_processor, ResourceCounter, task_submitter
@@ -680,7 +681,9 @@ class Thinker(BaseThinker):
         self.queues.send_inputs(xyz, method='run_calculator', topic='simulate',
                                 keep_inputs=True,  # The XYZ file is not big
                                 task_info={'traj_id': to_run.traj_id, 'task_type': task_type,
-                                           'ml_energy': to_run.ml_eng, 'xyz': xyz})
+                                           'ml_energy': to_run.ml_eng, 'xyz': xyz},
+                                resources=ResourceRequirements(cpu=8, gpu=0)
+                                )
         self.logger.info('TIMING - Finish submit_simulation')
 
     @result_processor(topic='simulate')
@@ -1009,7 +1012,9 @@ if __name__ == '__main__':
                             huber_deltas=args.huber_deltas)
     my_eval_schnet = _wrap(schnet.evaluate, device='cuda')
     # my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/lus/grand/projects/CSC249ADCD08/psi4')
-    my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/psi4')
+    if not os.path.exists('/tmp/psi4'):
+        os.mkdir('/tmp/psi4')
+    my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/tmp/psi4')
 
     # Determine which sampling method to use
     sampler_kwargs = {}
@@ -1096,14 +1101,12 @@ if __name__ == '__main__':
     # Wait for the method server to complete
     doer.join()
     logging.info('Task server has completed')
-    
-    import os
 
     # 获取当前任务的ID
-    job_id = os.environ.get('SLURM_JOB_ID')
+    # job_id = os.environ.get('SLURM_JOB_ID')
 
     # 发送scancel命令来结束当前任务
-    os.system(f'scancel {job_id}')
+    # os.system(f'scancel {job_id}')
 
     # Cleanup ProxyStore backends (i.e., delete objects on the filesystem
     # for file/globus backends)
