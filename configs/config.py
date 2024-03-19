@@ -124,7 +124,7 @@ def csecluster1(log_dir: str) -> Config:
         executors=[
             HighThroughputExecutor(
                 label="cpu",
-                max_workers=72,
+                max_workers=64,
                 address=address_by_hostname(),
                 worker_port_range=(20000,30000),
                 worker_logdir_root='/home/lizz_lab/cse30019698/parsl-logs',

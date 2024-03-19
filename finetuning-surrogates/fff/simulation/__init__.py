@@ -77,6 +77,17 @@ def _run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None) -
         except BaseException as exc:
             raise ValueError(f'Calculation failed: {exc}')
 
+        # manually clean
+        pid = os.getpid()
+        pattern = r"psi.*" + str(pid) + r".*"
+        for filename in os.listdir(temp_path):
+            # 使用正则表达式匹配文件名
+            if re.match(pattern, filename):
+                # 构建文件路径
+                file_path = os.path.join(temp_path, filename)
+                # 删除文件
+                os.remove(file_path)
+        
         # Convert it to JSON
         return write_to_string(atoms, 'json')
     

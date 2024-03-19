@@ -729,7 +729,7 @@ class Thinker(BaseThinker):
                 self.logger.info('Difference is too large. Not storing as this structure is unrealistic')
 
             # Trigger actions based on number of tasks completed
-            if self.num_complete % self.retrain_freq == 0:
+            if self.num_complete % (self.retrain_freq * self.n_models)== 0:
                 if self.training_complete.is_set():
                     self.logger.info('Sufficient data collected to retrain. Triggering training to restart.')
                     self.start_training.set()
