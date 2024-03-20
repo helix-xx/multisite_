@@ -15,6 +15,7 @@ import shutil
 import json
 import sys
 import os
+import pickle
 
 import ase
 from ase.db import connect
@@ -158,6 +159,18 @@ class Thinker(BaseThinker):
             shuffle(self.search_space)
             self.search_space = deque(self.search_space)
         self.logger.info(f'Loaded a search space of {len(self.search_space)} geometries at {search_path}')
+        
+        # use fixed input for simulation
+        # add history data to make model more accuracy
+        # TODO only work for csecluster test
+        with open("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/task_queue_audit.pkl", 'rb') as f:
+            self.hist_task_queue_audit = pickle.load(f)
+        hist_path = [] 
+        hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/simulation-results-20240319_230707.json")
+        hist_path.appned("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/inference-results-20240319_230707.json")
+        hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/sampling-results-20240319_230707.json")
+        hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/training-results-20240319_230707.json")
+        self.queues.evosch.hist_data.get_features_from_his_json(hist_path)
 
         # State that evolves as we run
         self.training_round = 0
@@ -645,9 +658,17 @@ class Thinker(BaseThinker):
 
         # Submit it
         self.logger.info(f'Selected a {task_type} to run next')
+        # atoms = to_run.atoms
+        # atoms.set_center_of_mass([0, 0, 0])
+        # xyz = write_to_string(atoms, 'xyz')
+        
+        ## used fixed data
+        to_run = self.hist_task_queue_audit.pop(0)
+        task_type = 'audit'
         atoms = to_run.atoms
         atoms.set_center_of_mass([0, 0, 0])
         xyz = write_to_string(atoms, 'xyz')
+        
         self.queues.send_inputs(xyz, method='run_calculator', topic='simulate',
                                 keep_inputs=True,  # The XYZ file is not big
                                 task_info={'traj_id': to_run.traj_id, 'task_type': task_type,
