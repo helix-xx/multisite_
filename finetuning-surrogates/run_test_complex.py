@@ -539,9 +539,9 @@ class Thinker(BaseThinker):
             selected_structures = self._select_structures(all_strcs, all_preds, all_traj_id)
             self.logger.info(f'Selected a set of {len(selected_structures)} updated structures')
 
-            # Update the task list
-            with self.task_queue_lock:
-                self.task_queue_active.extend(selected_structures)
+            # Update the task list now we control the task nums
+            # with self.task_queue_lock:
+            #     self.task_queue_active.extend(selected_structures)
             self.logger.info('Updated task queue')
             self._log_queue_sizes()
 
@@ -688,6 +688,7 @@ class Thinker(BaseThinker):
             self.logger.info(f'Evaluated {self.num_complete}/{self.num_to_run} structures')
             if self.num_complete >= self.num_to_run:
                 self.done.set()
+                return
 
             # Store the simulation energy for later analysis
             atoms: ase.Atoms = read_from_string(result.value, 'json')

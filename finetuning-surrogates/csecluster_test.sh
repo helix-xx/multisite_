@@ -43,7 +43,7 @@ rm -r /tmp/psi*
     ## redisport 7485->7486(test)
 
     ## baseline
-python run_test_complex.py \
+python run_test_complex_compare.py \
   --ml-endpoint db55e9cc-ec32-47d6-a6ff-ecd45776d276 \
   --qc-endpoint 698fba9a-4b12-4e0b-b83a-be6ded509946 \
   --training-set ../data/forcefields/starting-model/initial-database.db \
