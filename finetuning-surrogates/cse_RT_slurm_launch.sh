@@ -6,11 +6,10 @@
 #SBATCH --nodes=1              # 申请节点数为1,如果作业不能跨节点(MPI)运行, 申请的节点数应不超过1
 #SBATCH --ntasks-per-node=56    # 每个节点上运行一个任务，默认一情况下也可理解为每个节点使用一个核心；
 #SBATCH --gres=gpu:4           # 指定作业的需要的GPU卡数量，集群不一样，注意最大限制; 
-#SBATCH --time=10:00:00       
-#SBATCH --nodelist=gpu005
+#SBATCH --time=2:00:00       
 
 ## description here 
-job_desc="finetuning-surrogates 8 threads,new parameters, two nodes test" 
+job_desc="test on clester RT, test complex"
 
 echo "Started at $(date +'%Y%m%d_%H%M%S')"
 proj_dir="/home/lizz_lab/cse12232433/project/colmena/multisite_"
@@ -40,7 +39,7 @@ ssh $node \
 conda activate multisite; \
 redis-server ./redis.conf &; \
 cd $work_dir; \
-./runs/analysis/monitor.sh ${run_dir} &;\
+./analysis/monitor.sh ${run_dir} &;\
 ./csecluster_test.sh ${run_dir} &> /dev/null \"" >> $log_file
 
 
@@ -54,7 +53,7 @@ cd $work_dir; \
 # ./csecluster_test.sh ${run_dir} &> /dev/null "
 
 node=${node_list[0]}
-ssh gpu005 \
+ssh $node \
     "cd $proj_dir ; \
     conda activate multisite ; \
     redis-server ./redis.conf & \
@@ -62,4 +61,6 @@ ssh gpu005 \
     ./analysis/monitor.sh ${run_dir} & \
     ./csecluster_test.sh ${run_dir}  "
 
-echo "Completed at $(date +%Y%m%d_%H%M%S)" >> $log_file
+# cleanning and kill
+# find /tmp -user $USER -exec mv -t /home/lizz_lab/cse12232433/tmp {} +
+# echo "tmp file move to ~/tmp, please check and remove them" >> $log_file
