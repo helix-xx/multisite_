@@ -167,7 +167,7 @@ class Thinker(BaseThinker):
             self.hist_task_queue_audit = pickle.load(f)
         hist_path = [] 
         hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/simulation-results-20240319_230707.json")
-        hist_path.appned("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/inference-results-20240319_230707.json")
+        hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/inference-results-20240319_230707.json")
         hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/sampling-results-20240319_230707.json")
         hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/training-results-20240319_230707.json")
         self.queues.evosch.hist_data.get_features_from_his_json(hist_path)
@@ -658,16 +658,16 @@ class Thinker(BaseThinker):
 
         # Submit it
         self.logger.info(f'Selected a {task_type} to run next')
-        # atoms = to_run.atoms
-        # atoms.set_center_of_mass([0, 0, 0])
-        # xyz = write_to_string(atoms, 'xyz')
-        
-        ## used fixed data
-        to_run = self.hist_task_queue_audit.pop(0)
-        task_type = 'audit'
         atoms = to_run.atoms
         atoms.set_center_of_mass([0, 0, 0])
         xyz = write_to_string(atoms, 'xyz')
+        
+        ## used fixed data
+        # to_run = self.hist_task_queue_audit.pop(0)
+        # task_type = 'audit'
+        # atoms = to_run.atoms
+        # atoms.set_center_of_mass([0, 0, 0])
+        # xyz = write_to_string(atoms, 'xyz')
         
         self.queues.send_inputs(xyz, method='run_calculator', topic='simulate',
                                 keep_inputs=True,  # The XYZ file is not big
