@@ -43,7 +43,7 @@ rm -r /tmp/psi*
     ## redisport 7485->7486(test)
 
     ## baseline
-python run_test_complex.py \
+python run_test_complex_compare.py \
   --ml-endpoint db55e9cc-ec32-47d6-a6ff-ecd45776d276 \
   --qc-endpoint 698fba9a-4b12-4e0b-b83a-be6ded509946 \
   --training-set ../data/forcefields/starting-model/initial-database.db \
@@ -76,7 +76,7 @@ rm -r /tmp/psi*
 
 # cleanning and kill
 find /tmp -user $USER -exec mv -t /home/lizz_lab/cse30019698/tmp {} +
-echo "tmp file move to ~/tmp, please check and remove them" >> $log_file
+echo "tmp file move to ~/tmp, please check and remove them"
 
 user_job_id=$(squeue -u $USER -o "%.18i" | grep -v JOBID | awk '{print $1}')
 echo "current task ID is:$user_job_id"
