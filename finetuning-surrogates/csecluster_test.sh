@@ -49,7 +49,7 @@ python run_test_complex_compare.py \
   --training-set ../data/forcefields/starting-model/initial-database.db \
   --search-space ../data/forcefields/starting-model/initial-database.db \
   --starting-model ../data/forcefields/starting-model/starting-model \
-  --num-qc-workers 8 \
+  --num-qc-workers 7 \
   --min-run-length 200 \
   --max-run-length 2000 \
   --num-frames 100 \
@@ -75,7 +75,7 @@ echo "Completed at $(date +%Y%m%d_%H%M%S)"
 rm -r /tmp/psi*
 
 # cleanning and kill
-find /tmp -user $USER -exec mv -t /home/lizz_lab/cse30019698/tmp {} +
+find /tmp -user $USER -exec mv -t /home/lizz_lab/cse12232433/tmp {} +
 echo "tmp file move to ~/tmp, please check and remove them"
 
 user_job_id=$(squeue -u $USER -o "%.18i" | grep -v JOBID | awk '{print $1}')

@@ -36,8 +36,6 @@ from fff.sampling.md import MolecularDynamics
 from fff.simulation import run_calculator
 from fff.simulation.utils import read_from_string, write_to_string
 
-from config import csecluster1 as make_config
-# from config import wsl_local as make_config
 
 logger = logging.getLogger('main')
 
@@ -136,6 +134,9 @@ class Thinker(BaseThinker):
         # rec = ResourceCounter(n_qc_workers, ['sample', 'simulate'])
         # super().__init__(queues, resource_counter=rec)
         super().__init__(queues)
+        
+        with open("/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/task_queue_audit.pkl",'rb')as f:
+            self.hist_task_queue_audit = pickle.load(f)
 
         # Save key configuration
         self.n_qc_workers = n_qc_workers
@@ -160,17 +161,6 @@ class Thinker(BaseThinker):
             self.search_space = deque(self.search_space)
         self.logger.info(f'Loaded a search space of {len(self.search_space)} geometries at {search_path}')
         
-        # use fixed input for simulation
-        # add history data to make model more accuracy
-        # TODO only work for csecluster test
-        with open("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/task_queue_audit.pkl", 'rb') as f:
-            self.hist_task_queue_audit = pickle.load(f)
-        hist_path = [] 
-        hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/simulation-results-20240319_230707.json")
-        hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/inference-results-20240319_230707.json")
-        hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/sampling-results-20240319_230707.json")
-        hist_path.append("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/training-results-20240319_230707.json")
-        self.queues.evosch.hist_data.get_features_from_his_json(hist_path)
 
         # State that evolves as we run
         self.training_round = 0
@@ -658,16 +648,16 @@ class Thinker(BaseThinker):
 
         # Submit it
         self.logger.info(f'Selected a {task_type} to run next')
-        atoms = to_run.atoms
-        atoms.set_center_of_mass([0, 0, 0])
-        xyz = write_to_string(atoms, 'xyz')
-        
-        ## used fixed data
-        # to_run = self.hist_task_queue_audit.pop(0)
-        # task_type = 'audit'
         # atoms = to_run.atoms
         # atoms.set_center_of_mass([0, 0, 0])
         # xyz = write_to_string(atoms, 'xyz')
+        
+        ## used fixed data
+        to_run_f = self.hist_task_queue_audit.pop(0)
+        task_type = 'audit'
+        atoms = to_run_f.atoms
+        atoms.set_center_of_mass([0, 0, 0])
+        xyz = write_to_string(atoms, 'xyz')
         
         self.queues.send_inputs(xyz, method='run_calculator', topic='simulate',
                                 keep_inputs=True,  # The XYZ file is not big
@@ -853,11 +843,31 @@ if __name__ == '__main__':
     group = parser.add_argument_group(title='customize', description='customize parameters add by yxx')
     group.add_argument('--work-dir', default='runs', help='work directory')
     group.add_argument('--threads', default='56', type=int, help='number of threads for psi4, 56 is the platform biggest cores')
+    group.add_argument('--cluster', default='cseRT', type=str, help='which cluster to run on')
 
     # Parse the arguments
     args = parser.parse_args()
     run_params = args.__dict__
-
+    # make config
+    if (args.cluster == 'cseRT'):
+        from config import csecluster_RT_scale as make_config
+        resources = {"cpu": 56, "gpu": 4, "memory": "128G"}
+    elif(args.cluster == 'cse1'):
+        from config import csecluster1 as make_config
+        {"cpu": 64, "gpu": 4, "memory": "128G"}
+    # from config import wsl_local as make_config
+    
+    
+    # use fixed input for simulation
+    # add history data to make model more accuracy
+    # TODO only work for csecluster test
+    # with open("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/task_queue_audit.pkl", 'rb') as f:
+    #     hist_task_queue_audit = pickle.load(f)
+    hist_path = [] 
+    hist_path.append("/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/simulation-results-20240319_230707.json")
+    hist_path.append("/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/inference-results-20240319_230707.json")
+    hist_path.append("/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/sampling-results-20240319_230707.json")
+    hist_path.append("/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/training-results-20240319_230707.json")
     # Check that the dataset exists
     with connect(args.training_set) as db:
         assert len(db) > 0
@@ -925,7 +935,9 @@ if __name__ == '__main__':
                          topics=['simulate', 'sample', 'train', 'infer'],
                          methods=['run_calculator', 'run_sampling', 'train', 'evaluate'],
                          serialization_method='pickle',
-                         keep_inputs=False)
+                         keep_inputs=False,
+                         available_resources=resources,
+                         enable_evo=False)
 
 
     # Apply wrappers to functions that will be used to fix certain requirements
@@ -1014,6 +1026,7 @@ if __name__ == '__main__':
     logging.info('Created the method server and task generator')
 
     try:
+        queues.evosch.hist_data.get_features_from_his_json(hist_path)
         # Launch the servers
         doer.start()
         thinker.start()

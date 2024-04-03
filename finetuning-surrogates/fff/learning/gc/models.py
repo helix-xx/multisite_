@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from typing import Optional, Union
+import time
 
 import torch
 import torch.nn as nn
@@ -187,6 +188,7 @@ class SchNet(nn.Module):
         :param energy_target (optional): Tensor containing the energy target to
             use for evaluating the mean-squared-error loss when training.
         """
+        
         # Collapse any leading batching dimensions
         pos = data.pos
 
