@@ -1,8 +1,11 @@
 #!/bin/bash
 # export PSI_SCRATCH="/home/lizz_lab/cse30019698/tmp"
+# this script should be in ./finetuning-surrogate
 # 获取参数作为工作目录，如果参数为空则设置默认值
 if [ -z "$1" ]; then
-  work_dir="/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs"
+  # work_dir="/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs"
+  currdir=$(cd $(dirname $0);pwd)
+  work_dir=${currdir}/runs
 else
   work_dir="$1"
 fi
@@ -43,7 +46,7 @@ rm -r /tmp/psi*
     ## redisport 7485->7486(test)
 
     ## baseline
-python run_test_complex_compare.py \
+python run_test_complex.py \
   --ml-endpoint db55e9cc-ec32-47d6-a6ff-ecd45776d276 \
   --qc-endpoint 698fba9a-4b12-4e0b-b83a-be6ded509946 \
   --training-set ../data/forcefields/starting-model/initial-database.db \

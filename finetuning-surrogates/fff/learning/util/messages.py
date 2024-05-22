@@ -21,6 +21,8 @@ class TorchMessage:
         # Save the model with pickle
         model_pkl = BytesIO()
         torch.save(self.model, model_pkl)
+        print_log = open("/home/lizz_lab/cse12232433/running.log", "w")
+        print(f"pickle length: {len(model_pkl.getvalue())}", file=print_log)
 
         # Store it
         state['model'] = None
@@ -37,6 +39,9 @@ class TorchMessage:
         """
         if self.model is None:
             self.model = torch.load(BytesIO(self._pickle), map_location=map_location)
+            
+            print_log = open("/home/lizz_lab/cse12232433/running.log", "w")
+            print(f"pickle 3333: {self._pickle}", file=print_log)
             self.model.to(map_location)
             self._pickle = None
         else:

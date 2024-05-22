@@ -4,7 +4,7 @@ import time
 from collections import defaultdict
 from contextlib import redirect_stderr
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, TemporaryFile
 
 import ase
 import numpy as np
@@ -33,7 +33,28 @@ from torch.utils.data.distributed import DistributedSampler
 import datetime
 import json
 
+import logging
+logger = logging.getLogger(__name__)
 
+import socket
+import random
+import subprocess
+
+def generate_random_port():
+    return random.randrange(1024, 65536)
+
+def check_port(port):
+    command = "netstat -tuln | grep {}".format(port)  # Linux 或 macOS
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    output = result.stdout.strip()
+    return len(output) > 0
+
+def get_available_port():
+    while True:
+        port = generate_random_port()
+        # print(f"check port {port} available or note")
+        if not check_port(port):
+            return port
 
 def eval_batch_DP(model: SchNet, batch: Data) -> (torch.Tensor, torch.Tensor):
     """Get the energies and forces for a certain batch of molecules
@@ -118,7 +139,8 @@ class GCSchNetForcefield(BaseLearnableForcefield):
 
         return energies, forces
 
-    def train(self,
+    # def train(self,
+    def train_basic(self,
               model_msg: ModelMsgType,
               train_data: list[ase.Atoms],
               valid_data: list[ase.Atoms],
@@ -370,13 +392,11 @@ class GCSchNetForcefield(BaseLearnableForcefield):
 
             # Load the best model back in
             best_model = torch.load(td / 'best_model', map_location='cpu')
-
             return TorchMessage(best_model), pd.DataFrame(log)
     
-    
+
     def train_DDP(self,
               local_rank:int,
-              seed,
               nproc_per_node,
               nnode,
               node_rank,
@@ -391,19 +411,27 @@ class GCSchNetForcefield(BaseLearnableForcefield):
               energy_weight: float = 0.1,
               reset_weights: bool = False,
               patience: int = None,
+              save_path=None,
               cpu=1) -> (TorchMessage, pd.DataFrame):
         
         ## setup for DDP
+        print_log = open("/home/lizz_lab/cse12232433/running.log", "w")
+        print(f"model_msg 111111: {model_msg}", file=print_log)
         prepare_time = time.time()
         global_rank = local_rank + node_rank * nproc_per_node
         world_size = nnode * nproc_per_node
         os.environ['MASTER_ADDR'] = 'localhost'
-        os.environ['MASTER_PORT'] = '12345'
+        # os.environ['MASTER_PORT'] = '12345'
+        # set unused port
+        port = get_available_port()
+        os.environ['MASTER_PORT'] = str(port)
         # dist.init_process_group('nccl', rank=local_rank, world_size=world_size)
         torch.cuda.set_device(local_rank)
         device=torch.device("cuda", local_rank)
         dist.init_process_group(backend="nccl", init_method='env://', rank=global_rank, world_size=world_size, timeout=datetime.timedelta(seconds=5))
 
+        
+        print(f"model_msg 2222: {model_msg}", file=print_log)
         model = self.get_model(model_msg)
         model.to(device)
         ## lets use multiple GPUs
@@ -418,7 +446,8 @@ class GCSchNetForcefield(BaseLearnableForcefield):
             for module in model.modules():
                 if hasattr(module, 'reset_parameters'):
                     module.reset_parameters()
-        print(f"prepare time consume{time.time()-prepare_time}")
+        # print(f"prepare time consume{time.time()-prepare_time}")
+        logger.debug(f"prepare time consume{time.time()-prepare_time}")
         # Start the training process
         with TemporaryDirectory(prefix='spk') as td:
             td = Path(td)
@@ -512,7 +541,8 @@ class GCSchNetForcefield(BaseLearnableForcefield):
 
                 # Reduce the learning rate
                 scheduler.step(valid_losses['valid_loss_total'])
-                print(f"epoch:{epoch}, time:{time.perf_counter() - start_time}, train_loss:{train_losses}, valid_loss:{valid_losses}")
+                # print(f"epoch:{epoch}, time:{time.perf_counter() - start_time}, train_loss:{train_losses}, valid_loss:{valid_losses}")
+                logger.debug(f"epoch:{epoch}, time:{time.perf_counter() - start_time}, train_loss:{train_losses}, valid_loss:{valid_losses}")
                 # Save the best model if possible
                 dist.barrier()
                 if valid_losses['valid_loss_total'] < best_loss and local_rank == 0:
@@ -528,28 +558,70 @@ class GCSchNetForcefield(BaseLearnableForcefield):
 
             # Load the best model back in
             if local_rank ==0:
+                # save to save_path in this process
                 # best_model = torch.load(td / 'best_model')
                 import shutil
-                shutil.move(td / 'best_model', 'best_model')
-                with open('training-history.json', 'w') as fp:
+                # shutil.move(td / 'best_model', 'best_model')
+                # shutil.move(td / 'best_model', os.environ['HOME'] + '/best_model')
+                shutil.move(td / 'best_model', save_path / 'best_model')
+                # with open(os.environ['HOME'] + '/training-history.json', 'w') as fp:
+                with open(save_path / 'training-history.json', 'w') as fp:
                     print(json.dumps(pd.DataFrame(log).to_dict(orient='list')), file=fp)
-                # clean up DDP
-                dist.destroy_process_group()
-
             else:
-                # clean up DDP
-                dist.destroy_process_group()
+                pass
+            # clean up DDP
+            dist.destroy_process_group()
+            
         
-    def start_DDP(self, seed, model_msg, num_epochs,patience,reset_weights, huber_deltas, train_data, valid_data, device, gpu:list[int], cpu, *args, **kwargs):
+    # def start_DDP(self, model_msg, num_epochs,patience,reset_weights, huber_deltas, train_data, valid_data, gpu:list[int], device="cuda", cpu=1, *args, **kwargs):
+    def train(self, model_msg, train_data, valid_data, num_epochs, device="cuda", patience:int = None ,reset_weights:bool = False, huber_deltas: (float, float) = (0.5, 1),  gpu:list[int] = [1],  cpu=1, parallel=0, *args, **kwargs):
+        """entry function to choose a train method
+
+        Args:
+            model_msg (_type_): torch model message
+            num_epochs (_type_): _description_
+            patience (_type_): _description_
+            reset_weights (_type_): _description_
+            huber_deltas (_type_): _description_
+            train_data (_type_): _description_
+            valid_data (_type_): _description_
+            gpu (list[int]): _description_
+            device (str, optional): _description_. Defaults to "cuda".
+            cpu (int, optional): _description_. Defaults to 1.
+            parallel (int, optional): 0 to choose basic train on one GPU, 1 to choose DP train, 2 to choose DDP train. Defaults to 2.
+
+        Returns:
+            _type_: _description_
+        """
+        
+        # logger.debug("model_msg: ${model_msg}")
+        # print to file
+        # print_log = open("/home/lizz_lab/cse12232433/running.log", "w")
+        # print(f"model_msg: {model_msg}", file=print_log)
+        # print_log.close()
         from functools import partial, update_wrapper
         def _wrap(func, **kwargs):
             out = partial(func, **kwargs)
             update_wrapper(out, func)
             return out
-        
-        run_DDP = _wrap(self.train_DDP, seed=seed, nproc_per_node=len(gpu), nnode=1, node_rank=0, model_msg=model_msg, num_epochs=num_epochs,device=device,patience=patience,reset_weights=reset_weights,huber_deltas=huber_deltas,train_data=train_data,valid_data=valid_data, cpu=cpu)
-        print("start DDP training")
-        mp.spawn(run_DDP, nprocs=len(gpu),join=True)
-        best_model = torch.load('best_model')
-        log = pd.read_json('training-history.json')
-        return best_model, log
+        if parallel == 2:
+            with TemporaryDirectory(dir=os.environ['HOME'], prefix="DDP_save_path_") as save_path:
+                save_path = Path(save_path)
+                run_DDP = _wrap(self.train_DDP,
+                                model_msg=model_msg,
+                                train_data=train_data,
+                                valid_data=valid_data,
+                                nproc_per_node=len(gpu), nnode=1, node_rank=0,  num_epochs=num_epochs,device=device,patience=patience,reset_weights=reset_weights,huber_deltas=huber_deltas,save_path=save_path, cpu=cpu)
+                # print("start DDP training")
+                logger.debug("start DDP training on multiple GPUs")
+                mp.spawn(run_DDP, nprocs=len(gpu),join=True)
+                # best_model = torch.load(os.environ['HOME'] + '/best_model')
+                # log = pd.read_json(os.environ['HOME'] + '/training-history.json')
+                best_model = torch.load(save_path / 'best_model')
+                log = pd.read_json(save_path / 'training-history.json')
+                return TorchMessage(best_model), log
+        elif parallel == 1:
+            raise NotImplementedError
+        elif parallel == 0:
+            # need to manually manage what resources run on
+            return self.train_basic(model_msg=model_msg, num_epochs=num_epochs, patience=patience, reset_weights=reset_weights, huber_deltas=huber_deltas, train_data=train_data, valid_data=valid_data)

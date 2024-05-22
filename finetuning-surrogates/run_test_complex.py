@@ -174,7 +174,8 @@ class Thinker(BaseThinker):
         self.inference_results: dict[int, tuple[list[ase.Atoms], list[Optional[Result]]]] = {}  # Results from inf batches
         self.inference_complete: list[tuple[list[ase.Atoms], list[Result]]] = []  # Complete, successful inf batches
 
-        self.starting_model_proxy = TorchMessage(self.starting_model)
+        # self.starting_model_proxy = TorchMessage(self.starting_model)
+        self.starting_model_proxy = self.starting_model
 
         self.active_model_proxy = SchnetCalculator(self.starting_model)
         self.active_model_proxies: list[SchnetCalculator] = [self.active_model_proxy] * self.n_models
@@ -915,7 +916,7 @@ if __name__ == '__main__':
         h.addFilter(ParslFilter())
 
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                        level=logging.INFO, handlers=handlers)
+                        level=logging.DEBUG, handlers=handlers)
 
     logger.info(f'Run directory: {out_dir}')
     with open(out_dir / 'runparams.json', 'w') as fp:
@@ -948,9 +949,13 @@ if __name__ == '__main__':
 
     schnet = GCSchNetForcefield()
 
-    my_train_schnet = _wrap(schnet.train, num_epochs=args.num_epochs, device='cuda',
-                            patience=8, reset_weights=False,
-                            huber_deltas=args.huber_deltas)
+    # my_train_schnet = _wrap(schnet.train, num_epochs=args.num_epochs, device='cuda',
+    #                         patience=8, reset_weights=False,
+    #                         huber_deltas=args.huber_deltas)
+
+    # multigpu options
+    my_train_schnet = _wrap(schnet.train, num_epochs=args.num_epochs, patience=8, reset_weights=False, huber_deltas=args.huber_deltas, parallel=2)
+    
     my_eval_schnet = _wrap(schnet.evaluate, device='cuda')
     if not os.path.exists('/tmp/psi4'):
         os.mkdir('/tmp/psi4')

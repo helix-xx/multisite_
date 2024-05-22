@@ -10,11 +10,18 @@
 
 ## description here 
 job_desc="test on clester RT, test complex"
-
-echo "Started at $(date +'%Y%m%d_%H%M%S')"
-proj_dir="/home/lizz_lab/cse12232433/project/colmena/multisite_"
-work_dir="/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates"
 current_date=$(date +'%Y%m%d_%H%M%S')
+echo "Started at ${current_date}"
+
+## scripts could get curr dir, should placed under ./fituning-surrogates!
+# work_dir=$(cd $(dirname $0);pwd) sbatch may copy script to /var, wot work for this command
+
+home_dir=$(cd ~;pwd)
+# proj_dir="/home/lizz_lab/cse12232433/project/colmena/multisite_"
+proj_dir="${home_dir}/project/colmena/multisite_"
+# work_dir="/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates"
+work_dir="${proj_dir}/finetuning-surrogates"
+
 run_dir="${work_dir}/runs/${current_date}"
 log_file="${work_dir}/runs/${current_date}/yxx.log"
 mkdir -p $run_dir
@@ -33,12 +40,12 @@ echo "job_desc=${job_desc}" >> $log_file
 #     "
 # done
 
+# launch colmena on the first node
 echo "node=${node_list[0]} \
 ssh $node \
-\"cd $proj_dir; \
+\"cd $work_dir; \
 conda activate multisite; \
-redis-server ./redis.conf &; \
-cd $work_dir; \
+redis-server ../redis.conf &; \
 ./analysis/monitor.sh ${run_dir} &;\
 ./csecluster_test.sh ${run_dir} &> /dev/null \"" >> $log_file
 
@@ -47,17 +54,16 @@ cd $work_dir; \
 # ssh $node \
 # "cd $proj_dir ; \
 # conda activate multisite ; \
-# redis-server ./redis.conf & ; \
+# redis-server ../redis.conf & ; \
 # cd $work_dir ; \
 # ./runs/analysis/monitor.sh ${run_dir} & ; \
 # ./csecluster_test.sh ${run_dir} &> /dev/null "
 
 node=${node_list[0]}
 ssh $node \
-    "cd $proj_dir ; \
+    " cd $work_dir ; \
     conda activate multisite ; \
-    redis-server ./redis.conf & \
-    cd $work_dir ; \
+    redis-server ../redis.conf & \
     ./analysis/monitor.sh ${run_dir} & \
     ./csecluster_test.sh ${run_dir}  "
 
