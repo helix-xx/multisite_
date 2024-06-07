@@ -849,13 +849,15 @@ if __name__ == '__main__':
     # Parse the arguments
     args = parser.parse_args()
     run_params = args.__dict__
+    
     # make config
+    # make config on multi node and maintain resources pool
     if (args.cluster == 'cseRT'):
         from config import csecluster_RT_scale as make_config
         resources = {"cpu": 56, "gpu": 4, "memory": "128G"}
     elif(args.cluster == 'cse1'):
         from config import csecluster1 as make_config
-        {"cpu": 64, "gpu": 4, "memory": "128G"}
+        resources = {"cpu": 64, "gpu": 4, "memory": "128G"}
     # from config import wsl_local as make_config
     
     

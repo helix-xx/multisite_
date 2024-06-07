@@ -253,7 +253,7 @@ class Thinker(BaseThinker):
                 method='train',
                 topic='train',
                 task_info={'model_id': i, 'training_round': self.training_round, 'train_size': len(all_examples)},
-                resources=ResourceRequirements(cpu=1, gpu=1)
+                resources=ResourceRequirements(cpu=1, gpu=4, node='all')
             )
             self.training_incomplete += 1
         self.logger.info('TIMING - Finish train_models')
@@ -370,7 +370,7 @@ class Thinker(BaseThinker):
                     method='run_sampling',
                     topic='sample',
                     task_info={'traj_id': trajectory.id, 'run_length': self.run_length},
-                    resources=ResourceRequirements(cpu=1, gpu=1)
+                    resources=ResourceRequirements(cpu=1, gpu=1, node='all')
                 )
                 # self.logger.info('TIMING - Finish submit_sampler')
                 
@@ -478,7 +478,7 @@ class Thinker(BaseThinker):
                 self.queues.send_inputs(
                     model_msg, inf_chunk, keep_inputs=True, method='evaluate', topic='infer',
                     task_info={'model_id': model_id, 'infer_id': self.inference_round},
-                    resources=ResourceRequirements(cpu=1, gpu=1)
+                    resources=ResourceRequirements(cpu=1, gpu=1, node='all')
                 )
 
             # Increment the inference chunk ID
@@ -664,7 +664,7 @@ class Thinker(BaseThinker):
                                 keep_inputs=True,  # The XYZ file is not big
                                 task_info={'traj_id': to_run.traj_id, 'task_type': task_type,
                                            'ml_energy': to_run.ml_eng, 'xyz': xyz},
-                                resources=ResourceRequirements(cpu=8, gpu=0)
+                                resources=ResourceRequirements(cpu=8, gpu=0, node='all')
                                 )
         self.logger.info('TIMING - Finish submit_simulation')
         # self.simulation_counts += 1
