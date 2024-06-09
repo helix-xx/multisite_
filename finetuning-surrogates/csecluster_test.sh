@@ -39,7 +39,8 @@ fi
     
     ## redisport 7485->7486(test)
 
-threads=("64" "32" "16" "8" "4" "2" "1")
+# threads=("64" "32" "16" "8" "4" "2" "1")
+threads=("8")
 for thread in ${threads[@]}; do
     python run_test.py \
         --ml-endpoint db55e9cc-ec32-47d6-a6ff-ecd45776d276 \
