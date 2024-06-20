@@ -253,7 +253,7 @@ class Thinker(BaseThinker):
                 method='train',
                 topic='train',
                 task_info={'model_id': i, 'training_round': self.training_round, 'train_size': len(all_examples)},
-                resources=ResourceRequirements(cpu=1, gpu=4, node='all')
+                resources=ResourceRequirements(cpu=1, gpu=2, node='all')
             )
             self.training_incomplete += 1
         self.logger.info('TIMING - Finish train_models')
