@@ -60,7 +60,7 @@ def _run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None) -
 
     with TemporaryDirectory(dir=temp_path, prefix='fff') as temp_dir:
         # Execute from the temp so that the calculators do not interfere
-
+        os.chdir(temp_dir)
         # Special case for Psi4 which sets the run directory on creating the object
         if isinstance(calc, dict):
             calc = calc.copy()
@@ -78,15 +78,15 @@ def _run_calculator(xyz: str, calc: CalcType, temp_path: Optional[str] = None) -
             raise ValueError(f'Calculation failed: {exc}')
 
         # manually clean
-        pid = os.getpid()
-        pattern = r"psi.*" + str(pid) + r".*"
-        for filename in os.listdir(temp_path):
-            # 使用正则表达式匹配文件名
-            if re.match(pattern, filename):
-                # 构建文件路径
-                file_path = os.path.join(temp_path, filename)
-                # 删除文件
-                os.remove(file_path)
+        # pid = os.getpid()
+        # pattern = r"psi.*" + str(pid) + r".*"
+        # for filename in os.listdir(temp_path):
+        #     # 使用正则表达式匹配文件名
+        #     if re.match(pattern, filename):
+        #         # 构建文件路径
+        #         file_path = os.path.join(temp_path, filename)
+        #         # 删除文件
+        #         os.remove(file_path)
         
         # Convert it to JSON
         return write_to_string(atoms, 'json')

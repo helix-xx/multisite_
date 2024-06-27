@@ -163,7 +163,9 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                     patience: int = None,
                     cpu=1,
                     gpu=1) -> (TorchMessage, pd.DataFrame):
-
+        
+        logger = logging.getLogger('task')
+        logger.info(f"model_message type:{type(model_msg)}; model_message:{str(model_msg)[0:100]}")
         model = self.get_model(model_msg)
         model.to(device)
 
@@ -463,23 +465,23 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                   cpu=1,
                   gpu=[0],
                   port: str = '12345') -> (TorchMessage, pd.DataFrame):
-
+        logger = logging.getLogger('task')
         if not isinstance(gpu, list):
             raise TypeError("gpu input type should be list.")
         # setup for DDP
-        print_log = open("/home/lizz_lab/cse12232433/running.log", "a")
-        # print(f"model_msg 111111: {model_msg}", file=print_log)
+        # print_log = open("/home/lizz_lab/cse12232433/running.log", "a")
+        logger.info(f"DDP: model_msg 111111: {str(model_msg)[0:100]}")
         prepare_time = time.time()
-        print(
-            f"local_rank:{local_rank}, nproc_per_node:{nproc_per_node}, nnode:{nnode}, node_rank:{node_rank}", file=print_log)
-        print(f'gpu:{gpu}, gpu_id: {gpu[local_rank]}', file=print_log)
+        logger.info(
+            f"DDP: local_rank:{local_rank}, nproc_per_node:{nproc_per_node}, nnode:{nnode}, node_rank:{node_rank}")
+        logger.info(f'gpu:{gpu}, gpu_id: {gpu[local_rank]}')
         global_rank = local_rank + node_rank * nproc_per_node
         world_size = nnode * nproc_per_node
         os.environ['MASTER_ADDR'] = 'localhost'
         os.environ['MASTER_PORT'] = port
         # gpu_str = ','.join(map(str, gpu))
         # os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu[local_rank]) # visible gpu should set at very begining
-        print(f"Process {local_rank}: CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}, cuda_device_count{torch.cuda.device_count()}",file=print_log)
+        logger.info(f"Process {local_rank}: CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}, cuda_device_count{torch.cuda.device_count()}")
         torch.cuda.set_device(local_rank)
         device = torch.device("cuda", local_rank)
         # device = torch.device("cuda")
@@ -668,7 +670,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
         Returns:
             _type_: _description_
         """
-
+        logger = logging.getLogger('task')
         # logger.debug("model_msg: ${model_msg}")
         # print to file
         # print_log = open("/home/lizz_lab/cse12232433/running.log", "w")
@@ -695,12 +697,12 @@ class GCSchNetForcefield(BaseLearnableForcefield):
         # set unused port
         port = get_available_port()
 
-        print_log = open("/home/lizz_lab/cse12232433/running.log", "a")
-        print(
-            f"port:{port}, gpu:{gpu}, gpu_nums:{gpu_nums} hostname:{os.uname()}", file=print_log)
-        print_log.close()
+        import datetime
+        logger.info(
+            f"train: port:{port}, gpu:{gpu_str}, gpu_nums:{gpu_nums}, hostname:{os.uname().nodename}, current_time:{datetime.datetime.now()}")
+        logger.info(f"train: model message type :{type(model_msg)}; model message:{str(model_msg)[0:100]}")
         if parallel == 2:
-            with TemporaryDirectory(dir=os.environ['HOME'], prefix="DDP_save_path_") as save_path:
+            with TemporaryDirectory(dir=os.environ['HOME'] + '/tmp', prefix="DDP_save_path_") as save_path:
                 save_path = Path(save_path)
                 run_DDP = _wrap(self.train_DDP,
                                 model_msg=model_msg,
@@ -719,8 +721,10 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                                 gpu=gpu,
                                 port=str(port))
                 # print("start DDP training")
-                logger.debug("start DDP training on multiple GPUs")
+                # logger.debug("start DDP training on multiple GPUs")
+                logger.info(f"train: before spawn DDP, gpu:{gpu_str}, host_name:{os.uname().nodename}")
                 mp.spawn(run_DDP, nprocs=gpu_nums, join=True)
+                logger.info(f"train: after spawn DDP, gpu:{gpu_str}, host_name:{os.uname().nodename}")
                 # best_model = torch.load(os.environ['HOME'] + '/best_model')
                 # log = pd.read_json(os.environ['HOME'] + '/training-history.json')
                 best_model = torch.load(save_path / 'best_model')
