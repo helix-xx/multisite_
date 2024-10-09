@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from random import shuffle, sample
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, List
 from dataclasses import asdict
 import hashlib
 import logging
@@ -20,6 +20,7 @@ import pickle
 import ase
 from ase.db import connect
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
+from ase.calculators.calculator import Calculator
 from colmena.models import Result, ResourceRequirements
 from colmena.queue import ColmenaQueues
 from colmena.queue.redis import RedisQueues
@@ -1047,26 +1048,40 @@ if __name__ == '__main__':
     my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4')
 
     # Determine which sampling method to use
-    sampler_kwargs = {}
-    if args.sampling_method == 'md':
-        sampler = MolecularDynamics()
-        if args.sampling_on_device == 'gpu':
-            sampler_kwargs = {'device': "cuda",
-                              'timestep': 0.1, 'log_interval': 10}
-        else:
-            sampler_kwargs = {'device': "cpu",
-                              'timestep': 0.1, 'log_interval': 10}
-    elif args.sampling_method == 'mctbp':
-        sampler = MCTBP()
-    elif args.sampling_method == 'mhm':
-        mhm_dir = out_dir / 'mhm'
-        mhm_dir.mkdir()
-        sampler = MHMSampler(scratch_dir=mhm_dir)
-    else:
-        raise ValueError(
-            f'Sampling method not supported: {args.sampling_method}')
+    # sampler_kwargs = {}
+    # if args.sampling_method == 'md':
+    #     sampler = MolecularDynamics()
+    #     if args.sampling_on_device == 'gpu':
+    #         sampler_kwargs = {'device': "cuda",
+    #                           'timestep': 0.1, 'log_interval': 10}
+    #     else:
+    #         sampler_kwargs = {'device': "cpu",
+    #                           'timestep': 0.1, 'log_interval': 10}
+    # elif args.sampling_method == 'mctbp':
+    #     sampler = MCTBP()
+    # elif args.sampling_method == 'mhm':
+    #     mhm_dir = out_dir / 'mhm'
+    #     mhm_dir.mkdir()
+    #     sampler = MHMSampler(scratch_dir=mhm_dir)
+    # else:
+    #     raise ValueError(
+    #         f'Sampling method not supported: {args.sampling_method}')
+    
+    def run_sampling(atoms: ase.Atoms, steps: int, calc,
+                 sampler, device: Optional[str] = None, cpu=1, gpu:list=[0], **kwargs) -> Tuple[ase.Atoms, List[ase.Atoms]]:
+        import torch.multiprocessing as mp
 
-    my_run_dynamics = _wrap(sampler.run_sampling, **sampler_kwargs)
+        # 使用 spawn 方法
+        mp.set_start_method('spawn', force=True)
+
+        # 创建进程
+        with mp.Pool(processes=1) as pool:
+            result = pool.apply(sampler.run_sampling, args=(atoms, steps, calc, device, cpu, gpu), kwds=kwargs)
+        
+        return result
+    
+    sampler_kwargs = {'sampler': MolecularDynamics(),'device': "cuda:3", 'timestep': 0.1, 'log_interval': 10}
+    my_run_dynamics = _wrap(run_sampling, **sampler_kwargs)
 
     # simplify
     from my_util.multi_node_config import create_executor_from_config as make_config

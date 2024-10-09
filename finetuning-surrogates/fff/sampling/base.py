@@ -1,7 +1,13 @@
 """Base class for simulation methods"""
 from abc import abstractmethod
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
+import logging
+
+import torch
+import gc
+import sys
+import copy
 
 import ase
 from ase.calculators.calculator import Calculator
@@ -39,7 +45,7 @@ class CalculatorBasedSampler(BaseSampler):
     """A sampler class which uses an ase :class:`~ase.calculators.calculator.Calculator` to generate energies"""
 
     def run_sampling(self, atoms: ase.Atoms, steps: int, calc: Calculator = None,
-                     device: Optional[str] = None, cpu=1,gpu=0,**kwargs) -> (ase.Atoms, list[ase.Atoms]):
+                     device: Optional[str] = None, cpu=1, gpu: Union[list[int], int] = [0], **kwargs) -> (ase.Atoms, list[ase.Atoms]):
         """Run a sampling method
 
         Args:
@@ -52,9 +58,13 @@ class CalculatorBasedSampler(BaseSampler):
             - Structure used to audit the sampling performance
             - List of new structures to consider
         """
+        # logger = logging.getLogger('task')
         assert calc is not None, 'You must specify a calculator'
 
         # Unpack the calculator depending on its class
+        if isinstance(gpu, list) and device != "cpu":
+            device = "cuda:" + str(gpu[0])
+        
         if isinstance(calc, SchnetCalculator):
             calc.to(device)
 

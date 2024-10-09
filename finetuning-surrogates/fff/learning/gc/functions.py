@@ -123,7 +123,8 @@ class GCSchNetForcefield(BaseLearnableForcefield):
             # Make the data loader
             with open(os.devnull, 'w') as fp, redirect_stderr(fp):
                 dataset = AtomsDataset.from_atoms(atoms, root=tmp)
-                loader = DataListLoader(dataset, batch_size=batch_size)
+                # loader = DataListLoader(dataset, batch_size=batch_size)
+                loader = DataLoader(dataset, batch_size=batch_size)
 
             # Run all entries
             energies = []
@@ -647,8 +648,8 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                         log).to_dict(orient='list')), file=fp)
             else:
                 pass
-            # clean up DDP
-            dist.destroy_process_group()
+        # clean up DDP
+        dist.destroy_process_group()
 
     # def start_DDP(self, model_msg, num_epochs,patience,reset_weights, huber_deltas, train_data, valid_data, gpu:list[int], device="cuda", cpu=1, *args, **kwargs):
     def train(self, model_msg, train_data, valid_data, num_epochs, device="cuda", patience: int = None, reset_weights: bool = False, huber_deltas: (float, float) = (0.5, 1),  gpu: Union[list[int], int] = [1],  cpu=1, parallel=0, *args, **kwargs):
@@ -727,7 +728,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                 logger.info(f"train: after spawn DDP, gpu:{gpu_str}, host_name:{os.uname().nodename}")
                 # best_model = torch.load(os.environ['HOME'] + '/best_model')
                 # log = pd.read_json(os.environ['HOME'] + '/training-history.json')
-                best_model = torch.load(save_path / 'best_model')
+                best_model = torch.load(save_path / 'best_model', map_location='cpu')
                 log = pd.read_json(save_path / 'training-history.json')
                 return TorchMessage(best_model), log
         elif parallel == 1:
