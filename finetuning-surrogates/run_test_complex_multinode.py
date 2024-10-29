@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from random import shuffle, sample
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple, List, Union
 from dataclasses import asdict
 import hashlib
 import logging
@@ -28,6 +28,7 @@ from colmena.thinker import BaseThinker, event_responder, result_processor, Reso
 import proxystore as ps
 import numpy as np
 import torch
+import torch.multiprocessing as mp
 
 from fff.learning.gc.ase import SchnetCalculator
 from fff.learning.gc.functions import GCSchNetForcefield
@@ -137,7 +138,7 @@ class Thinker(BaseThinker):
 
         with open("/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/task_queue_audit.pkl", 'rb')as f:
             self.hist_task_queue_audit = pickle.load(f)
-            
+
         # create log_dir for task
         if not os.path.exists(out_dir / 'task_logs'):
             os.makedirs(out_dir / 'task_logs')
@@ -1042,10 +1043,25 @@ if __name__ == '__main__':
     my_train_schnet = _wrap(schnet.train, num_epochs=args.num_epochs, patience=8,
                             reset_weights=False, huber_deltas=args.huber_deltas, parallel=2)
 
-    my_eval_schnet = _wrap(schnet.evaluate, device='cuda')
+    def evaluate(model_msg, atoms, batch_size = 256, device: str = 'cpu', schnet = schnet, cpu = 1, gpu: Union[list[int], int] = [0], **kwargs):
+
+        # 使用 spawn 方法
+        mp.set_start_method('spawn', force=True)
+
+        # 创建进程
+        with mp.Pool(processes=1) as pool:
+            result = pool.apply(schnet.evaluate, args=(
+                model_msg, atoms, batch_size, device, cpu, gpu), kwds=kwargs)
+
+        return result
+    
+    my_eval_schnet = _wrap(evaluate, device='cuda')
+
     if not os.path.exists('/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4'):
-        os.mkdir('/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4')
-    my_run_simulation = _wrap(run_calculator, calc=calc, temp_path='/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4')
+        os.mkdir(
+            '/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4')
+    my_run_simulation = _wrap(
+        run_calculator, calc=calc, temp_path='/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4')
 
     # Determine which sampling method to use
     # sampler_kwargs = {}
@@ -1066,21 +1082,22 @@ if __name__ == '__main__':
     # else:
     #     raise ValueError(
     #         f'Sampling method not supported: {args.sampling_method}')
-    
+
     def run_sampling(atoms: ase.Atoms, steps: int, calc,
-                 sampler, device: Optional[str] = None, cpu=1, gpu:list=[0], **kwargs) -> Tuple[ase.Atoms, List[ase.Atoms]]:
-        import torch.multiprocessing as mp
+                     sampler, device: Optional[str] = None, cpu=1, gpu: Union[list[int], int] = [0], **kwargs) -> Tuple[ase.Atoms, List[ase.Atoms]]:
 
         # 使用 spawn 方法
         mp.set_start_method('spawn', force=True)
 
         # 创建进程
         with mp.Pool(processes=1) as pool:
-            result = pool.apply(sampler.run_sampling, args=(atoms, steps, calc, device, cpu, gpu), kwds=kwargs)
-        
+            result = pool.apply(sampler.run_sampling, args=(
+                atoms, steps, calc, device, cpu, gpu), kwds=kwargs)
+
         return result
-    
-    sampler_kwargs = {'sampler': MolecularDynamics(),'device': "cuda:3", 'timestep': 0.1, 'log_interval': 10}
+
+    sampler_kwargs = {'sampler': MolecularDynamics(
+    ), 'device': "cuda:3", 'timestep': 0.1, 'log_interval': 10}
     my_run_dynamics = _wrap(run_sampling, **sampler_kwargs)
 
     # simplify

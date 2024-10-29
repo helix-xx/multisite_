@@ -112,9 +112,11 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                  batch_size: int = 256,
                  device: str = 'cpu',
                  cpu=1,
-                 gpu=0) -> tuple[list[float], list[np.ndarray]]:
+                 gpu: Union[list[int], int] = [0]) -> tuple[list[float], list[np.ndarray]]:
         model = self.get_model(model_msg)
 
+        if isinstance(gpu, list) and device != "cpu":
+            device = "cuda:" + str(gpu[0])
         # Place the model on the GPU in eval model
         model.eval()
         model.to(device)
