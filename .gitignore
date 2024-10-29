@@ -1,3 +1,14 @@
 # exclusive data
 data/
 **/__pycache__/
+**/*.pyc
+**/*.pyo
+*.png
+*.log
+*.out
+*.pth
+*.db
+*.svg
+*.gv
+*.code-workspace
+my_test/
