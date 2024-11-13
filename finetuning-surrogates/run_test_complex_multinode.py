@@ -779,7 +779,7 @@ class Thinker(BaseThinker):
         atoms.set_center_of_mass([0, 0, 0])
         xyz = write_to_string(atoms, 'xyz')
 
-        # used fixed data
+        # used same historical data
         # to_run_f = self.hist_task_queue_audit.pop(0)
         # task_type = 'audit'
         # atoms = to_run_f.atoms
@@ -1436,7 +1436,9 @@ if __name__ == '__main__':
     logging.info('Created the method server and task generator')
 
     try:
-        queues.evosch.hist_data.get_features_from_his_json(hist_path)
+        # maybe queues and scheduler init here / with history or prior info
+        # queues.evosch.hist_data.get_features_from_his_json(hist_path)
+        queues.smart_sch.sch_data.historical_task_data.get_features_from_his_json(hist_path)
         # Launch the servers
         doer.start()
         thinker.start()
