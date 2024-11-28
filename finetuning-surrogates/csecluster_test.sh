@@ -46,7 +46,7 @@ rm -r /tmp/psi*
     ## redisport 7485->7486(test)
 
     ## baseline
-python run_test_complex_multinode.py \
+python run_test_complex_dynamic.py \
   --training-set ../data/forcefields/starting-model/initial-database.db \
   --search-space ../data/forcefields/starting-model/initial-database.db \
   --starting-model ../data/forcefields/starting-model/starting-model \
@@ -54,13 +54,13 @@ python run_test_complex_multinode.py \
   --min-run-length 200 \
   --max-run-length 2000 \
   --num-frames 100 \
-  --num-epochs 1 \
+  --num-epochs 256 \
   --ensemble-size 3 \
   --huber-deltas 1 10 \
-  --infer-chunk-size 400 \
+  --infer-chunk-size 4000 \
   --infer-pool-size 1 \
-  --retrain-freq 4 \
-  --num-to-run 36 \
+  --retrain-freq 8 \
+  --num-to-run 100 \
   --parsl \
   --no-proxies \
   --redisport 7485 \
