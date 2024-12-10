@@ -258,19 +258,23 @@ class Thinker(BaseThinker):
     def train_models(self, **kwargs):
         """Submit the models to be retrained"""
         if 'permit' in kwargs:
-            self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
-        
-        permit = kwargs['permit']
-        if permit == 1:
-            # extra round of training
-            self.training_round -= 1
-            pass
-        elif permit == -1:
-            time.sleep(10)
-        else:
-            if not self.start_training.is_set():
-                time.sleep(10)
+            # self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
+            permit = kwargs['permit']
+            if permit == 1:
+                # extra round of training
+                self.training_round -= 1
+                pass
+            elif permit == -1:
+                time.sleep(30)
+            elif permit == 0:
+                if not self.start_training.is_set():
+                    time.sleep(30)
+                    return
+            else:
+                self.logger.info('permit error')
                 return
+        else:
+            self.start_training.wait()
         self.logger.info('TIMING - Start train_models')
         self.training_complete.clear()
         self.training_round += 1
@@ -405,14 +409,22 @@ class Thinker(BaseThinker):
     def submit_sampler(self, **kwargs):
         """Perform molecular dynamics to generate new structures"""
         self.logger.info('TIMING - Start submit_sampler')
+        elastic_nums = 0
         if 'permit' in kwargs:
-            self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
-        
-        permit = kwargs['permit']
-        if permit == 1:
-            pass
-        elif permit == -1:
-            time.sleep(10)
+            # self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
+            permit = kwargs['permit']
+            if permit == 1:
+                # TODO Add logic to submit more tasks if needed
+                # if elastic_nums < self.elastic_nums:
+                #     elastic_nums += 1
+                pass
+            elif permit == -1:
+                time.sleep(30)
+            elif permit == 0:
+                # self.sampling_ready.wait()
+                pass
+        # else:
+        #     self.sampling_ready.wait()
         self.sampling_ready.wait()
         # if all model need update, submit enough task, clear the flag
         for model_id, updated in self.model_updated.items():
@@ -766,19 +778,31 @@ class Thinker(BaseThinker):
     def submit_simulation(self, **kwargs):
         """Submit a new simulation to check results from sampling/gather new training data"""
         self.logger.info('TIMING - Start submit_simulation')
+        self.logger.info('completed {}, total {}'.format(self.num_complete, self.training_round * self.retrain_freq))
         if 'permit' in kwargs:
-            self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
+            # self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
         
-        permit = kwargs['permit']
-        if permit == 1:
-            # pass the limit
-            pass
-        elif permit == -1:
-            time.sleep(10)
+            permit = kwargs['permit']
+            if permit == 1:
+                # pass the limit
+                pass
+            elif permit == -1:
+                time.sleep(30)
+            elif permit == 0:
+                # if already submit enough simulation, return
+                # if self.num_complete >= self.training_round * self.retrain_freq:
+                #     time.sleep(30)
+                #     return
+                pass
+            else:
+                self.logger.info('permit error')
+                return
         else:
             # if already submit enough simulation, return
-            if self.num_complete >= self.training_round * self.retrain_freq:
-                return
+            self.logger.info('completed {}, total {}'.format(self.num_complete, self.training_round * self.retrain_freq))
+            # if self.num_complete >= self.training_round * self.retrain_freq:
+            #     return
+            pass
         # add logic, each run submit num_modls*retrain_freq numbers of task
         # Get a simulation to run
         to_run = None
@@ -942,6 +966,7 @@ class Thinker(BaseThinker):
                         'Sufficient data collected to retrain. Triggering training to restart.'
                     )
                     self.start_training.set()
+                    self.simulation_submit_ready.clear()
                 else:
                     self.logger.info(
                         'Sufficient data collected to retrain, but training is still underway'
@@ -1410,6 +1435,7 @@ if __name__ == '__main__':
 
     # map_topics_methods = {'simulate': 'run_calculator', 'sample': 'run_sampling', 'train': 'train', 'infer': 'evaluate'}
     # Connect to the redis server
+    logger.info("init with resources {}".format(node_resources))
     queues = RedisQueues(
         hostname=args.redishost,
         port=args.redisport,
