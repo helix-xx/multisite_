@@ -809,6 +809,8 @@ class Thinker(BaseThinker):
         task_type = None
         while to_run is None:
             self.has_tasks.wait()
+            if self.done.is_set():
+                return
             with self.task_queue_lock:  # Wait for another thread to add structures
                 task_type = None
 
@@ -904,6 +906,7 @@ class Thinker(BaseThinker):
             )
             if self.num_complete >= self.num_to_run:
                 self.done.set()
+                self.has_tasks.set()
                 return
 
             # Store the simulation energy for later analysis
