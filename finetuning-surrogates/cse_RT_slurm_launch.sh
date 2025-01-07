@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o job.%j.out          # 脚本执行的输出将被保存在当job.%j.out文件下，%j表示作业号;
+#SBATCH -o /home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/job_out/job.%j.out          # 脚本执行的输出将被保存在当job.%j.out文件下，%j表示作业号;
 #SBATCH --partition=gpulab01      # 作业提交的指定分区队列为titan
 #SBATCH --qos=gpulab01            # 指定作业的QOS
 #SBATCH -J finetuning-surrogates       # 作业在调度系统中的作业名为myFirstJob;

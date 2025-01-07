@@ -185,6 +185,7 @@ class Thinker(BaseThinker):
 
         # State that evolves as we run
         self.training_round = 0
+        self.saved_round = 0
         self.inference_round = 0
         self.num_complete = 0
         self.run_length = min_run_length
@@ -275,10 +276,12 @@ class Thinker(BaseThinker):
                 return
         else:
             self.start_training.wait()
+            
         self.logger.info('TIMING - Start train_models')
         self.training_complete.clear()
         self.training_round += 1
-        self.logger.info(f'Started training batch {self.training_round}')
+        self.saved_round += 1
+        self.logger.info(f'Started training batch {self.saved_round}')
         self.active_updated = False
         self.model_updated = {i: False for i in range(self.n_models)}
 
@@ -321,7 +324,7 @@ class Thinker(BaseThinker):
                 topic='train',
                 task_info={
                     'model_id': i,
-                    'training_round': self.training_round,
+                    'training_round': self.saved_round,
                     'train_size': len(all_examples),
                     'log_dir': str(self.out_dir / 'task_logs'),
                 },
@@ -348,7 +351,7 @@ class Thinker(BaseThinker):
             # Store the result to disk
             model_dir = self.out_dir / 'models'
             model_dir.mkdir(exist_ok=True)
-            model_path = model_dir / f'model-{model_id}-round-{self.training_round}'
+            model_path = model_dir / f'model-{model_id}-round-{self.saved_round}'
             with open(model_path, 'wb') as fp:
                 torch.save(model_msg.get_model(), fp)
             self.logger.info(f'Saved model to: {model_path}')
@@ -1214,75 +1217,15 @@ if __name__ == '__main__':
     # Parse the arguments
     args = parser.parse_args()
     run_params = args.__dict__
-
-    # make config
-    # make config on multi node and maintain resources pool
-    if args.cluster == 'cseRT':
-        from config import csecluster_RT_scale as make_config
-
-        resources = {"cpu": 56, "gpu": 4, "memory": "128G"}
-    elif args.cluster == 'cse1':
-        from config import csecluster1 as make_config
-
-        resources = {"cpu": 64, "gpu": 4, "memory": "128G"}
-    # from config import wsl_local as make_config
-
-    # use fixed input for simulation
-    # add history data to make model more accuracy
-    # TODO only work for csecluster test
-    # with open("/home/lizz_lab/cse30019698/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/task_queue_audit.pkl", 'rb') as f:
-    #     hist_task_queue_audit = pickle.load(f)
-    hist_path = []
-    hist_path.append(
-        "/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/simulation-results-20240319_230707.json"
-    )
-    hist_path.append(
-        "/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/inference-results-20240319_230707.json"
-    )
-    hist_path.append(
-        "/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/sampling-results-20240319_230707.json"
-    )
-    hist_path.append(
-        "/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/training-results-20240319_230707.json"
-    )
-    # Check that the dataset exists
-    with connect(args.training_set) as db:
-        assert len(db) > 0
-        pass
-
-    # Get the hash of the training data and model
-    with open(args.training_set, 'rb') as fp:
-        run_params['data_hash'] = hashlib.sha256(fp.read()).hexdigest()
-    with open(args.starting_model, 'rb') as fp:
-        run_params['model_hash'] = hashlib.sha256(fp.read()).hexdigest()
-
-    # Make the calculator
-    if args.calculator == 'dft':
-        # num_threads will change due to resources allocate
-        calc = dict(
-            calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=args.threads
-        )
-    elif args.calculator == 'ttm':
-        from ttm.ase import TTMCalculator
-
-        calc = TTMCalculator()
-    else:
-        raise ValueError(f'Calculator not yet supported: {args.calculator}')
-
+    
     # Prepare the output directory and logger
-    # start_time = datetime.utcnow()
     start_time = datetime.now()
     params_hash = hashlib.sha256(json.dumps(run_params).encode()).hexdigest()[:6]
-    # out_dir = Path('runs') / f'{args.calculator}-{args.sampling_method}-{start_time.strftime("%y%b%d-%H%M%S")}-{params_hash}'
     out_dir = (
         Path(args.work_dir)
         / f'{args.calculator}-{args.sampling_method}-{start_time.strftime("%y%b%d-%H%M%S")}-{params_hash}'
     )
     out_dir.mkdir(parents=True)
-
-    # Make a copy of the training data
-    train_path = out_dir / 'train.db'
-    shutil.copyfile(args.training_set, train_path)
 
     # Set up the logging
     handlers = [
@@ -1308,8 +1251,49 @@ if __name__ == '__main__':
     )
 
     logger.info(f'Run directory: {out_dir}')
+
+    # make config
+    # make config on multi node and maintain resources pool
+    if args.cluster == 'cseRT':
+        from config import csecluster_RT_scale as make_config
+
+        resources = {"cpu": 56, "gpu": 4, "memory": "128G"}
+    elif args.cluster == 'cse1':
+        from config import csecluster1 as make_config
+
+        resources = {"cpu": 64, "gpu": 4, "memory": "128G"}
+    # from config import wsl_local as make_config
+
+    # Check that the dataset exists
+    with connect(args.training_set) as db:
+        assert len(db) > 0
+        pass
+
+    # Get the hash of the training data and model
+    with open(args.training_set, 'rb') as fp:
+        run_params['data_hash'] = hashlib.sha256(fp.read()).hexdigest()
+    with open(args.starting_model, 'rb') as fp:
+        run_params['model_hash'] = hashlib.sha256(fp.read()).hexdigest()
+
+    # Make the calculator
+    if args.calculator == 'dft':
+        # num_threads will change due to resources allocate
+        calc = dict(
+            calc='psi4', method='pbe0-d3', basis='aug-cc-pvdz', num_threads=args.threads
+        )
+    elif args.calculator == 'ttm':
+        from ttm.ase import TTMCalculator
+
+        calc = TTMCalculator()
+    else:
+        raise ValueError(f'Calculator not yet supported: {args.calculator}')
+
     with open(out_dir / 'runparams.json', 'w') as fp:
         json.dump(run_params, fp)
+        
+    # Make a copy of the training data
+    train_path = out_dir / 'train.db'
+    shutil.copyfile(args.training_set, train_path)
 
     # Load in the model
     starting_model = torch.load(args.starting_model, map_location='cpu')
@@ -1509,9 +1493,6 @@ if __name__ == '__main__':
     logging.info('Created the method server and task generator')
 
     try:
-        # maybe queues and scheduler init here / with history or prior info
-        # queues.evosch.hist_data.get_features_from_his_json(hist_path)
-        queues.smart_sch.sch_data.historical_task_data.get_features_from_his_json(hist_path)
         # Launch the servers
         doer.start()
         thinker.start()
