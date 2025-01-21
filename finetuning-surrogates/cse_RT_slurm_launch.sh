@@ -24,7 +24,7 @@ work_dir="${proj_dir}/finetuning-surrogates"
 
 run_dir="${work_dir}/runs/${current_date}"
 log_file="${work_dir}/runs/${current_date}/yxx.log"
-resources_file="${work_dir}/runs/${current_date}/slurm_resources.ini"
+resources_file="${work_dir}/runs/${current_date}/resources.ini"
 
 mkdir -p $run_dir
 

@@ -1419,7 +1419,7 @@ if __name__ == '__main__':
     from colmena.task_server import ParslTaskServer
 
     config, node_resources = make_config(
-        args.work_dir + "/slurm_resources.ini", str(out_dir)
+        args.work_dir + "/resources.ini", str(out_dir)
     )
     methods = [my_train_schnet, my_eval_schnet, my_run_dynamics, my_run_simulation]
 
