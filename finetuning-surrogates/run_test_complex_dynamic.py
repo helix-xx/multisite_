@@ -144,10 +144,12 @@ class Thinker(BaseThinker):
         # super().__init__(queues, resource_counter=rec)
         super().__init__(queues)
 
-        with open(
-            "/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/runs/hist_data/task_queue_audit.pkl",
-            'rb',
-        ) as f:
+        hist_file = os.path.join(
+            os.path.expanduser('~'),
+            'project/colmena/multisite_/finetuning-surrogates/runs/hist_data/task_queue_audit.pkl'
+        )
+
+        with open(hist_file, 'rb') as f:
             self.hist_task_queue_audit = pickle.load(f)
 
         # create log_dir for task
@@ -1256,12 +1258,10 @@ if __name__ == '__main__':
     # make config on multi node and maintain resources pool
     if args.cluster == 'cseRT':
         from config import csecluster_RT_scale as make_config
-
-        resources = {"cpu": 56, "gpu": 4, "memory": "128G"}
+        # resources = {"cpu": 56, "gpu": 4, "memory": "128G"}
     elif args.cluster == 'cse1':
         from config import csecluster1 as make_config
-
-        resources = {"cpu": 64, "gpu": 4, "memory": "128G"}
+        # resources = {"cpu": 64, "gpu": 4, "memory": "128G"}
     # from config import wsl_local as make_config
 
     # Check that the dataset exists
@@ -1348,16 +1348,19 @@ if __name__ == '__main__':
 
     my_eval_schnet = _wrap(evaluate, device='cuda')
 
-    if not os.path.exists(
-        '/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4'
-    ):
-        os.mkdir(
-            '/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4'
-        )
+    # 使用os.path.expanduser获取用户主目录
+    psi4_path = os.path.join(
+        os.path.expanduser('~'),
+        'project/colmena/multisite_/finetuning-surrogates/psi4'
+    )
+
+    if not os.path.exists(psi4_path):
+        os.makedirs(psi4_path)  # 使用makedirs可以创建多级目录
+
     my_run_simulation = _wrap(
         run_calculator,
         calc=calc,
-        temp_path='/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4',
+        temp_path=psi4_path
     )
 
     # Determine which sampling method to use
