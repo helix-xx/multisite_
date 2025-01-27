@@ -4,6 +4,7 @@ from parsl.addresses import address_by_hostname
 from parsl.launchers import AprunLauncher, SrunLauncher
 from parsl.channels import SSHChannel, LocalChannel, SSHInteractiveLoginChannel
 from parsl import Config
+import os
 import configparser
 
 
@@ -27,6 +28,7 @@ def create_executor_from_config(config_file: str, log_dir: str) -> (Config, dict
     bashrc_path = env_config.get('bashrc_path')
     conda_path = env_config.get('conda_path') 
     conda_env = env_config.get('conda_env')
+    user_path = os.path.expanduser('~')
 
     # worker_init = f'''
     #     # Activate conda environment
@@ -61,10 +63,12 @@ def create_executor_from_config(config_file: str, log_dir: str) -> (Config, dict
                             # password='Yxx!199871!',
                             script_dir=log_dir + '/parsl-logs'
                         ),
-                    worker_init='''
+                    worker_init=f'''
                         # Activate conda environment
+                        module load cuda/12.1
                         source {bashrc_path}
                         source {conda_path}/bin/activate {conda_env}
+                        export PSI_SCRATCH={user_path}/scratch
                         which python
                         '''
                 )
@@ -85,12 +89,13 @@ def create_executor_from_config(config_file: str, log_dir: str) -> (Config, dict
                             # password='Yxx!199871!',
                             script_dir=log_dir + '/parsl-logs'
                         ),
-                    worker_init='''
-                    # Activate conda environment
-                    source /home/lizz_lab/cse12232433/.bashrc
-                    source /home/lizz_lab/cse12232433/miniconda3/bin/activate /home/lizz_lab/cse12232433/miniconda3/envs/multisite
-                    which python
-                    '''
+                    worker_init=f'''
+                        # Activate conda environment
+                        source {bashrc_path}
+                        source {conda_path}/bin/activate {conda_env}
+                        export PSI_SCRATCH={user_path}/scratch
+                        which python
+                        '''
                 )
             )
         # executor = HighThroughputExecutor(

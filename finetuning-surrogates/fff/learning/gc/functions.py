@@ -168,7 +168,9 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                     gpu=1) -> (TorchMessage, pd.DataFrame):
         
         logger = logging.getLogger('task')
-        logger.info(f"model_message type:{type(model_msg)}; model_message:{str(model_msg)[0:100]}")
+        logger.info(
+            f"model_message type:{type(model_msg)}; model_message:{str(model_msg)[:100]}"
+        )
         model = self.get_model(model_msg)
         model.to(device)
 
@@ -230,7 +232,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                         force, batch.f, reduction='mean', delta=huber_force)
 
                     total_loss = energy_weight * energy_loss + \
-                        (1 - energy_weight) * force_loss
+                                (1 - energy_weight) * force_loss
 
                     # Iterate backwards
                     total_loss.backward()
@@ -246,8 +248,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                             total_loss.item())
 
                 # Compute the average loss for the batch
-                train_losses = dict((k, np.mean(v))
-                                    for k, v in train_losses.items())
+                train_losses = {k: np.mean(v) for k, v in train_losses.items()}
 
                 # Get the validation loss
                 valid_losses = defaultdict(list)
@@ -261,7 +262,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                     force_loss = F.huber_loss(
                         force, batch.f, reduction='mean', delta=huber_force)
                     total_loss = energy_weight * energy_loss + \
-                        (1 - energy_weight) * force_loss
+                                (1 - energy_weight) * force_loss
 
                     with torch.no_grad():
                         valid_losses['valid_loss_force'].append(
@@ -292,7 +293,6 @@ class GCSchNetForcefield(BaseLearnableForcefield):
             best_model = torch.load(td / 'best_model', map_location='cpu')
 
             return TorchMessage(best_model), pd.DataFrame(log)
-
     def train_DP(self,
                  model_msg: ModelMsgType,
                  train_data: list[ase.Atoms],
@@ -379,7 +379,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                         force, b_f, reduction='mean', delta=huber_force)
 
                     total_loss = energy_weight * energy_loss + \
-                        (1 - energy_weight) * force_loss
+                                (1 - energy_weight) * force_loss
 
                     # Iterate backwards
                     total_loss.backward()
@@ -395,8 +395,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                             total_loss.item())
 
                 # Compute the average loss for the batch
-                train_losses = dict((k, np.mean(v))
-                                    for k, v in train_losses.items())
+                train_losses = {k: np.mean(v) for k, v in train_losses.items()}
 
                 # Get the validation loss
                 valid_losses = defaultdict(list)
@@ -417,7 +416,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                     force_loss = F.huber_loss(
                         force, b_f, reduction='mean', delta=huber_force)
                     total_loss = energy_weight * energy_loss + \
-                        (1 - energy_weight) * force_loss
+                                (1 - energy_weight) * force_loss
 
                     with torch.no_grad():
                         valid_losses['valid_loss_force'].append(
@@ -427,8 +426,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                         valid_losses['valid_loss_total'].append(
                             total_loss.item())
 
-                valid_losses = dict((k, np.mean(v))
-                                    for k, v in valid_losses.items())
+                valid_losses = {k: np.mean(v) for k, v in valid_losses.items()}
 
                 # Reduce the learning rate
                 scheduler.step(valid_losses['valid_loss_total'])
@@ -468,35 +466,38 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                   cpu=1,
                   gpu=[0],
                   port: str = '12345') -> (TorchMessage, pd.DataFrame):
-        logger = logging.getLogger('task')
+        # logger = logging.getLogger('task')
         if not isinstance(gpu, list):
             raise TypeError("gpu input type should be list.")
         # setup for DDP
         # print_log = open("/home/lizz_lab/cse12232433/running.log", "a")
-        logger.info(f"DDP: model_msg 111111: {str(model_msg)[0:100]}")
+        # logger.info(f"DDP: model_msg 111111: {str(model_msg)[:100]}")
         prepare_time = time.time()
-        logger.info(
-            f"DDP: local_rank:{local_rank}, nproc_per_node:{nproc_per_node}, nnode:{nnode}, node_rank:{node_rank}")
-        logger.info(f'gpu:{gpu}, gpu_id: {gpu[local_rank]}')
+        # logger.info(
+        #     f"DDP: local_rank:{local_rank}, nproc_per_node:{nproc_per_node}, nnode:{nnode}, node_rank:{node_rank}")
+        # logger.info(f'gpu:{gpu}, gpu_id: {gpu[local_rank]}')
         global_rank = local_rank + node_rank * nproc_per_node
         world_size = nnode * nproc_per_node
-        os.environ['MASTER_ADDR'] = 'localhost'
-        os.environ['MASTER_PORT'] = port
+        # os.environ['MASTER_ADDR'] = 'localhost'
+        # os.environ['MASTER_PORT'] = port
         # gpu_str = ','.join(map(str, gpu))
         # os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu[local_rank]) # visible gpu should set at very begining
-        logger.info(f"Process {local_rank}: CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}, cuda_device_count{torch.cuda.device_count()}")
+        # logger.info(f"Process {local_rank}: CUDA_VISIBLE_DEVICES={os.environ['CUDA_VISIBLE_DEVICES']}, cuda_device_count{torch.cuda.device_count()}")
         torch.cuda.set_device(local_rank)
         device = torch.device("cuda", local_rank)
         # device = torch.device("cuda")
-        dist.init_process_group(backend="nccl", init_method='env://', rank=global_rank,
-                                world_size=world_size, timeout=datetime.timedelta(seconds=5))
+        try:
+            dist.init_process_group(backend="nccl", init_method='env://', rank=global_rank,
+                                    world_size=world_size, timeout=datetime.timedelta(seconds=10))
+        except Exception as e:
+            logger.error(f"Process {local_rank}: {e}, MASTER_ADDR:{os.environ['MASTER_ADDR']}, MASTER_PORT:{os.environ['MASTER_PORT']}")
+            raise e
 
         # print(f"model_msg 2222: {model_msg}", file=print_log)
         model = self.get_model(model_msg)
         model.to(device)
         # lets use multiple GPUs
         model = DistributedDataParallel(model, device_ids=[local_rank])
-        # model = DistributedDataParallel(model)
 
         # Unpack some inputs
         huber_eng, huber_force = huber_deltas
@@ -507,7 +508,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                 if hasattr(module, 'reset_parameters'):
                     module.reset_parameters()
         # print(f"prepare time consume{time.time()-prepare_time}")
-        logger.debug(f"prepare time consume{time.time()-prepare_time}")
+        # logger.debug(f"prepare time consume{time.time()-prepare_time}")
         # Start the training process
         with TemporaryDirectory(prefix='spk') as td:
             td = Path(td)
@@ -566,7 +567,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                     # force_loss = F.huber_loss(force, b_f, reduction='mean', delta=huber_force)
 
                     total_loss = energy_weight * energy_loss + \
-                        (1 - energy_weight) * force_loss
+                                    (1 - energy_weight) * force_loss
 
                     # Iterate backwards
                     # back_ward_time = time.time()
@@ -584,8 +585,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                             total_loss.item())
 
                 # Compute the average loss for the batch
-                train_losses = dict((k, np.mean(v))
-                                    for k, v in train_losses.items())
+                train_losses = {k: np.mean(v) for k, v in train_losses.items()}
 
                 # Get the validation loss
                 valid_losses = defaultdict(list)
@@ -605,7 +605,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                     # energy_loss = F.huber_loss(energy / b_n_atoms, b_y / b_n_atoms, reduction='mean', delta=huber_eng)
                     # force_loss = F.huber_loss(force, b_f, reduction='mean', delta=huber_force)
                     total_loss = energy_weight * energy_loss + \
-                        (1 - energy_weight) * force_loss
+                                    (1 - energy_weight) * force_loss
 
                     with torch.no_grad():
                         valid_losses['valid_loss_force'].append(
@@ -614,14 +614,13 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                             energy_loss.item())
                         valid_losses['valid_loss_total'].append(
                             total_loss.item())
-                valid_losses = dict((k, np.mean(v))
-                                    for k, v in valid_losses.items())
+                valid_losses = {k: np.mean(v) for k, v in valid_losses.items()}
 
                 # Reduce the learning rate
                 scheduler.step(valid_losses['valid_loss_total'])
                 # print(f"epoch:{epoch}, time:{time.perf_counter() - start_time}, train_loss:{train_losses}, valid_loss:{valid_losses}")
-                logger.debug(
-                    f"epoch:{epoch}, time:{time.perf_counter() - start_time}, train_loss:{train_losses}, valid_loss:{valid_losses}")
+                # logger.debug(
+                #     f"epoch:{epoch}, time:{time.perf_counter() - start_time}, train_loss:{train_losses}, valid_loss:{valid_losses}")
                 # Save the best model if possible
                 dist.barrier()
                 if valid_losses['valid_loss_total'] < best_loss and local_rank == 0:
@@ -648,12 +647,10 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                 with open(save_path / 'training-history.json', 'w') as fp:
                     print(json.dumps(pd.DataFrame(
                         log).to_dict(orient='list')), file=fp)
-            else:
-                pass
         # clean up DDP
+        # logger.info(f"Process {local_rank}: clean up DDP")
         dist.destroy_process_group()
 
-    # def start_DDP(self, model_msg, num_epochs,patience,reset_weights, huber_deltas, train_data, valid_data, gpu:list[int], device="cuda", cpu=1, *args, **kwargs):
     def train(self, model_msg, train_data, valid_data, num_epochs, device="cuda", patience: int = None, reset_weights: bool = False, huber_deltas: (float, float) = (0.5, 1),  gpu: Union[list[int], int] = [1],  cpu=1, parallel=0, *args, **kwargs):
         """entry function to choose a train method
 
@@ -697,13 +694,18 @@ class GCSchNetForcefield(BaseLearnableForcefield):
         gpu_str = ','.join(map(str, gpu))
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_str
 
+
         # set unused port
         port = get_available_port()
+        os.environ['MASTER_ADDR'] = 'localhost'
+        os.environ['MASTER_PORT'] = str(port)
 
         import datetime
         logger.info(
             f"train: port:{port}, gpu:{gpu_str}, gpu_nums:{gpu_nums}, hostname:{os.uname().nodename}, current_time:{datetime.datetime.now()}")
-        logger.info(f"train: model message type :{type(model_msg)}; model message:{str(model_msg)[0:100]}")
+        # logger.info(
+        #     f"train: model message type :{type(model_msg)}; model message:{str(model_msg)[:100]}"
+        # )
         if parallel == 2:
             with TemporaryDirectory(dir=os.environ['HOME'] + '/tmp', prefix="DDP_save_path_") as save_path:
                 save_path = Path(save_path)
@@ -732,9 +734,146 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                 # log = pd.read_json(os.environ['HOME'] + '/training-history.json')
                 best_model = torch.load(save_path / 'best_model', map_location='cpu')
                 log = pd.read_json(save_path / 'training-history.json')
+
+                # 清除遗留的dist
+                if dist.is_initialized():
+                    logger.info("train: dist is initialized, destroy it")
+                    dist.destroy_process_group()
                 return TorchMessage(best_model), log
         elif parallel == 1:
             raise NotImplementedError
         elif parallel == 0:
             # need to manually manage what resources run on
             return self.train_basic(model_msg=model_msg, num_epochs=num_epochs, patience=patience, reset_weights=reset_weights, huber_deltas=huber_deltas, train_data=train_data, valid_data=valid_data)
+        
+        
+    # def train(self, model_msg, train_data, valid_data, num_epochs, device="cuda", 
+    #         patience: int = None, reset_weights: bool = False, 
+    #         huber_deltas: (float, float) = (0.5, 1),  
+    #         gpu: Union[list[int], int] = [1], cpu=1, parallel=0, *args, **kwargs):
+        
+    #     def train_process(queue, model_msg, train_data, valid_data, num_epochs, device,
+    #                     patience, reset_weights, huber_deltas, gpu, cpu, parallel):
+    #         """训练进程函数，接收明确的参数"""
+    #         # 配置该进程的logger
+    #         logger = logging.getLogger('task')
+    #         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    #         handler = logging.StreamHandler()
+    #         handler.setFormatter(formatter)
+    #         logger.addHandler(handler)
+            
+    #         try:
+    #             # 检查GPU配置
+    #             if isinstance(gpu, list):
+    #                 gpu_nums = len(gpu)
+    #             elif isinstance(gpu, int):
+    #                 gpu_nums = gpu
+    #                 gpu_list = list(range(gpu))
+    #             else:
+    #                 raise TypeError("gpu input type should be list or int.")
+                
+    #             gpu_str = ','.join(map(str, gpu_list if 'gpu_list' in locals() else gpu))
+    #             os.environ["CUDA_VISIBLE_DEVICES"] = gpu_str
+                
+    #             if parallel == 2:
+    #                 with TemporaryDirectory(dir=Path.home() / 'tmp', prefix="DDP_save_path_") as save_path:
+    #                     save_path = Path(save_path)
+                        
+    #                     # 设置DDP环境
+    #                     port = get_available_port()
+    #                     os.environ['MASTER_ADDR'] = 'localhost'
+    #                     os.environ['MASTER_PORT'] = str(port)
+                        
+    #                     logger.info(f"train: port:{port}, gpu:{gpu_str}, gpu_nums:{gpu_nums}, "
+    #                             f"hostname:{os.uname().nodename}, current_time:{datetime.datetime.now()}")
+                        
+    #                     from functools import partial
+                        
+    #                     # 运行DDP训练
+    #                     run_DDP = partial(
+    #                         self.train_DDP,
+    #                         model_msg=model_msg,
+    #                         train_data=train_data,
+    #                         valid_data=valid_data,
+    #                         nproc_per_node=gpu_nums,
+    #                         nnode=1,
+    #                         node_rank=0,
+    #                         num_epochs=num_epochs,
+    #                         device=device,
+    #                         patience=patience,
+    #                         reset_weights=reset_weights,
+    #                         huber_deltas=huber_deltas,
+    #                         save_path=save_path,
+    #                         cpu=cpu,
+    #                         gpu=gpu if isinstance(gpu, list) else gpu_list,
+    #                         port=str(port)
+    #                     )
+                        
+    #                     logger.info(f"train: before spawn DDP, gpu:{gpu_str}, host_name:{os.uname().nodename}")
+    #                     mp.spawn(run_DDP, nprocs=gpu_nums, join=True)
+    #                     logger.info(f"train: after spawn DDP, gpu:{gpu_str}, host_name:{os.uname().nodename}")
+                        
+    #                     # 加载结果
+    #                     best_model = torch.load(save_path / 'best_model', map_location='cpu')
+    #                     log = pd.read_json(save_path / 'training-history.json')
+                        
+    #                     # 清理分布式环境
+    #                     if dist.is_initialized():
+    #                         logger.info("train: dist is initialized, destroy it")
+    #                         dist.destroy_process_group()
+                        
+    #                     queue.put((True, (TorchMessage(best_model), log)))
+                
+    #             elif parallel == 1:
+    #                 raise NotImplementedError
+                
+    #             elif parallel == 0:
+    #                 result = self.train_basic(
+    #                     model_msg=model_msg,
+    #                     num_epochs=num_epochs,
+    #                     patience=patience,
+    #                     reset_weights=reset_weights,
+    #                     huber_deltas=huber_deltas,
+    #                     train_data=train_data,
+    #                     valid_data=valid_data
+    #                 )
+    #                 queue.put((True, result))
+                    
+    #         except Exception as e:
+    #             logger.error(f"Training process error: {str(e)}")
+    #             queue.put((False, (e, traceback.format_exc())))
+            
+    #         finally:
+    #             # 清理GPU资源
+    #             if torch.cuda.is_available():
+    #                 torch.cuda.empty_cache()
+    #                 torch.cuda.synchronize()
+        
+    #     # 创建队列和进程
+    #     queue = mp.Queue()
+    #     process = mp.Process(
+    #         target=train_process,
+    #         args=(queue, model_msg, train_data, valid_data, num_epochs, device,
+    #             patience, reset_weights, huber_deltas, gpu, cpu, parallel)
+    #     )
+        
+    #     try:
+    #         # 启动进程
+    #         process.start()
+            
+    #         # 等待结果
+    #         success, result = queue.get()
+            
+    #         # 检查是否成功
+    #         if not success:
+    #             error, tb = result
+    #             logger.error(f"Training failed with traceback:\n{tb}")
+    #             raise error
+                
+    #         return result
+            
+    #     finally:
+    #         # 确保进程被正确清理
+    #         if process.is_alive():
+    #             process.terminate()
+    #         process.join()

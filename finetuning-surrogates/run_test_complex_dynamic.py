@@ -330,7 +330,7 @@ class Thinker(BaseThinker):
                     'train_size': len(all_examples),
                     'log_dir': str(self.out_dir / 'task_logs'),
                 },
-                resources=ResourceRequirements(cpu=1, gpu=2, node='all'),
+                resources=ResourceRequirements(cpu=1, gpu=1, node='all'),
             )
             self.training_incomplete += 1
         self.logger.info('TIMING - Finish train_models')
