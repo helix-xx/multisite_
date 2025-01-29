@@ -1264,13 +1264,21 @@ if __name__ == '__main__':
         # resources = {"cpu": 64, "gpu": 4, "memory": "128G"}
     # from config import wsl_local as make_config
 
+    # mv data to /tmp
+    # check training set exist:
+    if not os.path.exists(args.training_set):
+        raise ValueError('training set not exist')
+    shutil.copyfile(args.training_set, '/tmp/initial-database.db')
+    # shutil.copyfile(args.starting_model, '/tmp/starting_model.pth')
+    training_set = '/tmp/initial-database.db'
+    # starting_model_path = '/tmp/starting_model.pth'
     # Check that the dataset exists
-    with connect(args.training_set) as db:
+    with connect(training_set) as db:
         assert len(db) > 0
         pass
 
     # Get the hash of the training data and model
-    with open(args.training_set, 'rb') as fp:
+    with open(training_set, 'rb') as fp:
         run_params['data_hash'] = hashlib.sha256(fp.read()).hexdigest()
     with open(args.starting_model, 'rb') as fp:
         run_params['model_hash'] = hashlib.sha256(fp.read()).hexdigest()
@@ -1292,8 +1300,9 @@ if __name__ == '__main__':
         json.dump(run_params, fp)
         
     # Make a copy of the training data
-    train_path = out_dir / 'train.db'
-    shutil.copyfile(args.training_set, train_path)
+    # train_path = out_dir / 'train.db'
+    # shutil.copyfile(args.training_set, train_path)
+    train_path = training_set
 
     # Load in the model
     starting_model = torch.load(args.starting_model, map_location='cpu')
@@ -1479,7 +1488,8 @@ if __name__ == '__main__':
         queues,
         out_dir=out_dir,
         db_path=train_path,
-        search_path=Path(args.search_space),
+        # search_path=Path(args.search_space),
+        search_path=training_set,
         model=starting_model,
         infer_chunk_size=args.infer_chunk_size,
         infer_pool_size=args.infer_pool_size,
