@@ -74,36 +74,35 @@ class PerformanceDataCollector(BaseThinker):
         self.cpu_configs = cpu_configs
         self.gpu_configs = gpu_configs
         self.samples_per_config = samples_per_config
+        self.expansion_times = 3
         
         # 性能数据存储
         self.performance_data = defaultdict(list)
         
         simulation_times = 50
-        train_times = 5
+        train_times = 2
         if len(task_queue_audit) >=simulation_times:
             self.logger.info(f"Truncating task queue to {simulation_times} tasks")
             self.task_queue_audit = task_queue_audit[:simulation_times]
         
         self.total_simulation_tasks = simulation_times * len(cpu_configs) * samples_per_config
-        self.total_train_tasks = train_times * len(gpu_configs) * samples_per_config
+        self.total_train_tasks = len(gpu_configs) * samples_per_config * self.expansion_times
         # 任务计数
         self.completed_tasks = 0
-        # self.total_tasks = (
-        #     self.total_simulation_tasks + self.total_train_tasks
-        # )
+        # self.total_tasks = self.total_simulation_tasks + self.total_train_tasks
         self.total_tasks = self.total_simulation_tasks
         self.simulation_sunmitted = 0
         self.train_submitted = 0
         self.logger.info(f'Total tasks: {self.total_tasks}, simulation tasks: {self.total_simulation_tasks}, training tasks: {self.total_train_tasks}')
         
         self.starting_model_proxy = starting_model
-        self.db_path = '/home/lizz_lab/cse12232433/project/colmena/multisite_/data/forcefields/starting-model/initial-database_test.db'        # Load in the training dataset
-        # with connect(self.db_path) as db:
-        #     self.logger.info(
-        #         f'Connected to a database with {len(db)} entries at {self.db_path}'
-        #     )
-        #     self.all_examples = np.array([x.toatoms() for x in db.select("")], dtype=object)
-        # self.logger.info(f'Loaded {len(self.all_examples)} training examples')
+        self.db_path = os.path.expanduser('~/project/colmena/multisite_/data/forcefields/starting-model/initial-database_test.db')        # Load in the training dataset
+        with connect(self.db_path) as db:
+            self.logger.info(
+                f'Connected to a database with {len(db)} entries at {self.db_path}'
+            )
+            self.all_examples = np.array([x.toatoms() for x in db.select("")], dtype=object)
+        self.logger.info(f'Loaded {len(self.all_examples)} training examples')
         
         # self.logger = logger
         
@@ -143,41 +142,43 @@ class PerformanceDataCollector(BaseThinker):
                     )
                     self.simulation_sunmitted += 1
     
-    @task_submitter(task_type="train", enable_allocate=False)
-    def submit_training_tasks(self, **kwargs):
-        """提交training任务"""
-        self.logger.info(f'Submitting training tasks')
-        if self.train_submitted >= self.total_train_tasks:
-            time.sleep(60)
-            return
-        all_examples = self.all_examples
-        # Sample the training sets and proxy them
-        train_sets = []
-        valid_sets = []
-        n_train = int(len(all_examples) * 0.9)
-        shuffle(all_examples)
-        train_sets.append(all_examples[:n_train])
-        valid_sets.append(all_examples[n_train:])
-        for gpu in self.gpu_configs:
-            for _ in range(self.samples_per_config):
-                self.queues.send_inputs(
-                    self.starting_model_proxy,
-                    train_sets[0],
-                    valid_sets[0],
-                    method='train',
-                    topic='train',
-                    keep_inputs=True,
-                    task_info={
-                        'cpu_config': 1,
-                        'gpu_config': gpu,
-                    },
-                    resources=ResourceRequirements(
-                        cpu=1,
-                        gpu=gpu,
-                        node='all'
-                    ),
-                )
-                self.train_submitted += 1
+    # @task_submitter(task_type="train", enable_allocate=False)
+    # def submit_training_tasks(self, **kwargs):
+    #     """提交training任务"""
+    #     self.logger.info(f'Submitting training tasks')
+    #     if self.train_submitted >= self.total_train_tasks:
+    #         time.sleep(60)
+    #         return
+    #     expansion_size = 25
+    #     for expansion in range(self.expansion_times):
+    #         all_examples = self.all_examples
+    #         # all_examples.extend(all_examples[expansion * 25:(expansion + 1) * 25])
+    #         new_examples = all_examples[expansion * expansion_size:(expansion + 1) * expansion_size]
+    #         all_examples = np.concatenate([all_examples, new_examples])
+    #         n_train = int(len(all_examples) * 0.9)
+    #         shuffle(all_examples)
+    #         train_sets = [all_examples[:n_train]]
+    #         valid_sets = [all_examples[n_train:]]
+    #         for gpu in self.gpu_configs:
+    #             for _ in range(self.samples_per_config):
+    #                 self.queues.send_inputs(
+    #                     self.starting_model_proxy,
+    #                     train_sets[0],
+    #                     valid_sets[0],
+    #                     method='train',
+    #                     topic='train',
+    #                     keep_inputs=True,
+    #                     task_info={
+    #                         'cpu_config': 1,
+    #                         'gpu_config': gpu,
+    #                     },
+    #                     resources=ResourceRequirements(
+    #                         cpu=1,
+    #                         gpu=gpu,
+    #                         node='all'
+    #                     ),
+    #                 )
+    #                 self.train_submitted += 1
     
     @result_processor(topic='simulate')
     def store_simulation_result(self, result: Result):
@@ -268,7 +269,7 @@ def run_performance_collection(args):
     # 创建执行器配置
     from my_util.multi_node_config import create_executor_from_config
     config, node_resources = create_executor_from_config(
-        args.work_dir + "/slurm_resources.ini", 
+        args.work_dir + "/resources.ini", 
         str(out_dir)
     )
     
@@ -281,7 +282,7 @@ def run_performance_collection(args):
     my_run_simulation = _wrap(
         run_calculator,
         calc=calc,
-        temp_path='/home/lizz_lab/cse12232433/project/colmena/multisite_/finetuning-surrogates/psi4',
+        temp_path=os.path.expanduser('~/project/colmena/multisite_/finetuning-surrogates/psi4'),
     )
     starting_model = torch.load(args.starting_model, map_location='cpu')
     
@@ -308,10 +309,11 @@ def run_performance_collection(args):
         hostname=args.redishost,
         port=args.redisport,
         prefix=start_time.strftime("%d%b%y-%H%M%S"),
-        topics=['simulate', 'train'],
-        methods=['run_calculator', 'train'],
+        topics=['simulate', 'sample', 'train', 'infer'],
+        methods=['run_calculator', 'run_sampling', 'train', 'evaluate'],
         serialization_method='pickle',
         keep_inputs=False,
+        scheduler="fcfs",
         available_resources=node_resources,
     )
     

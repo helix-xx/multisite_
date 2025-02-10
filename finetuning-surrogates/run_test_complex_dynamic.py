@@ -330,7 +330,7 @@ class Thinker(BaseThinker):
                     'train_size': len(all_examples),
                     'log_dir': str(self.out_dir / 'task_logs'),
                 },
-                resources=ResourceRequirements(cpu=1, gpu=1, node='all'),
+                resources=ResourceRequirements(cpu=1, gpu=4, node='all'),
             )
             self.training_incomplete += 1
         self.logger.info('TIMING - Finish train_models')
@@ -871,7 +871,7 @@ class Thinker(BaseThinker):
                 'xyz': xyz,
                 'log_dir': str(self.out_dir / 'task_logs'),
             },
-            resources=ResourceRequirements(cpu=8, gpu=0, node='all'),
+            resources=ResourceRequirements(cpu=24, gpu=0, node='all'),
         )
         self.logger.info('TIMING - Finish submit_simulation')
         # self.simulation_counts += 1
@@ -910,6 +910,7 @@ class Thinker(BaseThinker):
                 f'Evaluated {self.num_complete}/{self.num_to_run} structures'
             )
             if self.num_complete >= self.num_to_run:
+                self.logger.info('All structures have been evaluated')
                 self.done.set()
                 self.has_tasks.set()
                 return
@@ -1443,8 +1444,9 @@ if __name__ == '__main__':
         methods=['run_calculator', 'run_sampling', 'train', 'evaluate'],
         serialization_method='pickle',
         keep_inputs=False,
+        scheduler='ga',
         available_resources=node_resources,
-        enable_evo=True,
+        # enable_evo=False,
     )
 
     # Create the task server

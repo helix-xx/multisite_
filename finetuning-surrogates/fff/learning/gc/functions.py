@@ -488,7 +488,7 @@ class GCSchNetForcefield(BaseLearnableForcefield):
         # device = torch.device("cuda")
         try:
             dist.init_process_group(backend="nccl", init_method='env://', rank=global_rank,
-                                    world_size=world_size, timeout=datetime.timedelta(seconds=10))
+                                    world_size=world_size, timeout=datetime.timedelta(seconds=30))
         except Exception as e:
             logger.error(f"Process {local_rank}: {e}, MASTER_ADDR:{os.environ['MASTER_ADDR']}, MASTER_PORT:{os.environ['MASTER_PORT']}")
             raise e
@@ -691,7 +691,17 @@ class GCSchNetForcefield(BaseLearnableForcefield):
             gpu = list(range(gpu))
         else:
             raise TypeError("gpu input type should be list or int.")
-        gpu_str = ','.join(map(str, gpu))
+        
+        # gpu ids manage
+        original_gpu_ids = os.environ.get("CUDA_VISIBLE_DEVICES")
+        # map gpu_str to original gpu_ids
+        available_gpu_ids = [int(i) for i in original_gpu_ids.split(",")]
+
+        assigned_gpus = []
+        for logical_idx in gpu:
+            assigned_gpus.append(available_gpu_ids[logical_idx])
+        gpu_str = ','.join(map(str, assigned_gpus))
+        # gpu_str = ','.join(map(str, gpu))
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_str
 
 
@@ -739,6 +749,10 @@ class GCSchNetForcefield(BaseLearnableForcefield):
                 if dist.is_initialized():
                     logger.info("train: dist is initialized, destroy it")
                     dist.destroy_process_group()
+                    
+                # 恢复原始GPU配置
+                os.environ["CUDA_VISIBLE_DEVICES"] = original_gpu_ids
+                
                 return TorchMessage(best_model), log
         elif parallel == 1:
             raise NotImplementedError

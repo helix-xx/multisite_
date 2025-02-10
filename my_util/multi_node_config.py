@@ -45,6 +45,9 @@ def create_executor_from_config(config_file: str, log_dir: str) -> (Config, dict
         hostname = config.get(section, 'name')
         cpus = int(config.get(section, 'cpus'))
         gpus = int(config.get(section, 'gpus'))
+        # 如果包含gpu_devices字段
+        if config.has_option(section, 'gpu_devices'):
+            gpu_devices = config.get(section, 'gpu_devices')
 
         if gpus > 0:
             executor = HighThroughputExecutor(
@@ -69,6 +72,7 @@ def create_executor_from_config(config_file: str, log_dir: str) -> (Config, dict
                         source {bashrc_path}
                         source {conda_path}/bin/activate {conda_env}
                         export PSI_SCRATCH={user_path}/scratch
+                        export CUDA_VISIBLE_DEVICES={gpu_devices}
                         which python
                         '''
                 )
