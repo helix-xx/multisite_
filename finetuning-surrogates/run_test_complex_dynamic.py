@@ -330,7 +330,7 @@ class Thinker(BaseThinker):
                     'train_size': len(all_examples),
                     'log_dir': str(self.out_dir / 'task_logs'),
                 },
-                resources=ResourceRequirements(cpu=1, gpu=4, node='all'),
+                resources=ResourceRequirements(cpu=1, gpu=1, node='all'),
             )
             self.training_incomplete += 1
         self.logger.info('TIMING - Finish train_models')
@@ -853,11 +853,11 @@ class Thinker(BaseThinker):
         xyz = write_to_string(atoms, 'xyz')
 
         # used same historical data
-        # to_run_f = self.hist_task_queue_audit.pop(0)
-        # task_type = 'audit'
-        # atoms = to_run_f.atoms
-        # atoms.set_center_of_mass([0, 0, 0])
-        # xyz = write_to_string(atoms, 'xyz')
+        to_run_f = self.hist_task_queue_audit.pop(0)
+        task_type = 'audit'
+        atoms = to_run_f.atoms
+        atoms.set_center_of_mass([0, 0, 0])
+        xyz = write_to_string(atoms, 'xyz')
 
         self.queues.send_inputs(
             xyz,
