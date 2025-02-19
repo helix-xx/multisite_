@@ -25,6 +25,7 @@ from ase.calculators.calculator import Calculator
 from colmena.models import Result, ResourceRequirements
 from colmena.queue import ColmenaQueues
 from colmena.queue.redis import RedisQueues
+from colmena.task_server import ParslTaskServer
 from colmena.thinker import (
     BaseThinker,
     event_responder,
@@ -32,6 +33,16 @@ from colmena.thinker import (
     ResourceCounter,
     task_submitter,
 )
+
+# Path configuration
+def setup_path():
+    relative_path = "~/project/colmena/multisite_"
+    absolute_path = os.path.expanduser(relative_path)
+    if absolute_path not in sys.path:
+        sys.path.append(absolute_path)
+
+setup_path()
+
 import proxystore as ps
 import numpy as np
 import torch
@@ -1424,10 +1435,7 @@ if __name__ == '__main__':
     }
     my_run_dynamics = _wrap(run_sampling, **sampler_kwargs)
 
-    # simplify
     from my_util.multi_node_config import create_executor_from_config as make_config
-    from colmena.task_server import ParslTaskServer
-
     config, node_resources = make_config(
         args.work_dir + "/resources.ini", str(out_dir)
     )
