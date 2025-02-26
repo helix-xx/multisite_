@@ -864,7 +864,7 @@ class Thinker(BaseThinker):
         xyz = write_to_string(atoms, 'xyz')
 
         # used same historical data
-        to_run_f = self.hist_task_queue_audit.pop(0)
+        to_run_f = self.hist_task_queue_audit[self.simulation_counts % len(self.hist_task_queue_audit)]
         task_type = 'audit'
         atoms = to_run_f.atoms
         atoms.set_center_of_mass([0, 0, 0])
@@ -885,7 +885,7 @@ class Thinker(BaseThinker):
             resources=ResourceRequirements(cpu=24, gpu=0, node='all'),
         )
         self.logger.info('TIMING - Finish submit_simulation')
-        # self.simulation_counts += 1
+        self.simulation_counts += 1
         # we now just submit all simulation
         # if self.simulation_counts == self.n_models * self.retrain_freq:
         #     self.simulation_counts == 0
