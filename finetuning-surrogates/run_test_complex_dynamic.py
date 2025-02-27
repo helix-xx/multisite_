@@ -60,6 +60,48 @@ from fff.simulation.utils import read_from_string, write_to_string
 logger = logging.getLogger('main')
 
 
+def wait_for_any_event(events, timeout=None):
+    """
+    等待多个事件中的任意一个被设置
+    
+    Args:
+        events: 事件列表
+        timeout: 超时时间(秒)，None表示无限等待
+    
+    Returns:
+        tuple: (success, triggered_events) 是否有事件被触发及被触发的事件列表
+    """
+    if not events:
+        return False, []
+    
+    # 移除None事件
+    valid_events = [e for e in events if e is not None]
+    if not valid_events:
+        return False, []
+    
+    # 等待事件被设置
+    start_time = time.time()
+    triggered_events = []
+    
+    while True:
+        # 检查是否超时
+        if timeout is not None and time.time() - start_time > timeout:
+            break
+        
+        # 检查每个事件
+        for event in valid_events:
+            if event.is_set():
+                triggered_events.append(event)
+        
+        # 如果有触发的事件，返回
+        if triggered_events:
+            return True, triggered_events
+        
+        # 短暂休眠避免CPU过载
+        time.sleep(1)
+    
+    return len(triggered_events) > 0, triggered_events
+
 @dataclass
 class Trajectory:
     """Tracks the state of searching along individual trajectories
@@ -271,24 +313,76 @@ class Thinker(BaseThinker):
     @task_submitter(task_type='train', enable_allocate=False)
     def train_models(self, **kwargs):
         """Submit the models to be retrained"""
-        if 'permit' in kwargs:
-            # self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
-            permit = kwargs['permit']
-            if permit == 1:
-                # extra round of training
-                self.training_round -= 1
-                pass
-            elif permit == -1:
-                time.sleep(30)
-            elif permit == 0:
-                if not self.start_training.is_set():
-                    time.sleep(30)
-                    return
-            else:
-                self.logger.info('permit error')
+            # 获取资源反馈事件
+        resource_event, resource_info = self.queues.get_resource_event('train')
+        
+        # 需要等待的事件列表
+        events_to_wait = []
+        
+        # 添加用户自定义的事件
+        if hasattr(self, 'start_training'):
+            events_to_wait.append(self.start_training)
+        
+        # 添加资源反馈事件 (如果可用)
+        if resource_event is not None:
+            events_to_wait.append(resource_event)
+        
+        # 等待任意一个事件被触发
+        if events_to_wait:
+            self.logger.info(f"Waiting for start_training event or resource availability...")
+            success, triggered_events = wait_for_any_event(events_to_wait, timeout=120)
+            
+            if not success:
+                self.logger.info("No events triggered after waiting, skipping submission")
                 return
+            
+            # 判断是哪个事件被触发了
+            start_training_triggered = self.start_training in triggered_events if hasattr(self, 'start_training') else False
+            resource_triggered = resource_event in triggered_events if resource_event is not None else False
+            
+            if resource_triggered and not start_training_triggered:
+                # 仅资源事件被触发 - 提交额外训练但不改变主训练逻辑
+                resource_event.clear()
+                self.logger.info("Resource event triggered - submitting additional training task")
+                # 可以在这里设置特殊标记，表示这是额外的训练任务
+                extra_training = True
+            else:
+                # 正常训练流程被触发
+                self.logger.info("Normal training cycle triggered")
+                extra_training = False
         else:
-            self.start_training.wait()
+            # 没有事件需要等待，直接执行
+            self.logger.info("No events to wait for, proceeding directly")
+            extra_training = False
+        
+        
+        # 仅在正常训练时增加训练轮次
+        if not extra_training:
+            pass
+        else:
+            self.training_round -= 1
+            self.logger.info(f'Started additional training (not incrementing round)')
+        
+        # if 'permit' in kwargs:
+        #     # self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
+        #     permit = kwargs['permit']
+        #     if permit == 1:
+        #         # extra round of training
+        #         self.training_round -= 1
+        #         pass
+        #     elif permit == -1:
+        #         time.sleep(30)
+        #     elif permit == 0:
+        #         if not self.start_training.is_set():
+        #             time.sleep(30)
+        #             return
+        #     else:
+        #         self.logger.info('permit error')
+        #         return
+        # else:
+        #     self.start_training.wait()
+        # self.start_training.wait()
+        
             
         self.logger.info('TIMING - Start train_models')
         self.training_complete.clear()
@@ -824,7 +918,62 @@ class Thinker(BaseThinker):
         to_run = None
         task_type = None
         while to_run is None:
-            self.has_tasks.wait()
+            # self.has_tasks.wait()
+            
+            ################################################################
+            # 获取资源反馈事件
+            resource_event, resource_info = self.queues.get_resource_event('simulate')
+            
+            # 需要等待的事件列表
+            events_to_wait = []
+            
+            # 添加用户自定义的事件
+            if hasattr(self, 'has_tasks'):
+                events_to_wait.append(self.has_tasks)
+            
+            # 添加资源反馈事件 (如果可用)
+            if resource_event is not None:
+                events_to_wait.append(resource_event)
+            
+            # 等待任意一个事件被触发
+            if events_to_wait:
+                self.logger.info(f"Waiting for simuation event or resource availability...")
+                success, triggered_events = wait_for_any_event(events_to_wait, timeout=120)
+                
+                if not success:
+                    self.logger.info("No events triggered after waiting, skipping submission")
+                    return
+                
+                # 判断是哪个事件被触发了
+                has_tasks_triggered = self.has_tasks in triggered_events if hasattr(self, 'has_tasks') else False
+                resource_triggered = resource_event in triggered_events if resource_event is not None else False
+                
+                if resource_triggered and not has_tasks_triggered:
+                    # 仅资源事件被触发 - 提交额外训练但不改变主训练逻辑
+                    resource_event.clear()
+                    self.logger.info("Resource event triggered - submitting additional training task")
+                    # 可以在这里设置特殊标记，表示这是额外的训练任务
+                    extra_training = True
+                else:
+                    # 正常训练流程被触发
+                    self.logger.info("Normal simulation cycle triggered")
+                    extra_training = False
+            else:
+                # 没有事件需要等待，直接执行
+                self.logger.info("No events to wait for, proceeding directly")
+                extra_training = False
+            
+            if not extra_training:
+                pass
+            else:
+                with self.task_queue_lock:
+                    self.task_queue_audit.append(
+                        self.hist_task_queue_audit[0]
+                    )
+                    self.has_tasks.set()
+                    self._log_queue_sizes()
+                self.logger.info(f'Started additional simulation')
+            ################################################################
             if self.done.is_set():
                 return
             with self.task_queue_lock:  # Wait for another thread to add structures
