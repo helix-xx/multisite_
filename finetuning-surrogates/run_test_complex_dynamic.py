@@ -1605,7 +1605,7 @@ if __name__ == '__main__':
         methods=['run_calculator', 'run_sampling', 'train', 'evaluate'],
         serialization_method='pickle',
         keep_inputs=False,
-        scheduler='ga',
+        scheduler='mrsa',
         available_resources=node_resources,
         # enable_evo=False,
     )
