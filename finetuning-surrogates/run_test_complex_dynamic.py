@@ -283,6 +283,8 @@ class Thinker(BaseThinker):
         for i in range(self.n_models):
             self.model_updated[i] = False
             self.sample_counts[i] = 0
+            
+        self.extra_simulation = 0
 
         self.sampling_ready = (
             Event()
@@ -972,6 +974,7 @@ class Thinker(BaseThinker):
                     )
                     self.has_tasks.set()
                     self._log_queue_sizes()
+                    self.num_to_run = self.num_to_run + 1
                 self.logger.info(f'Started additional simulation')
             ################################################################
             if self.done.is_set():
@@ -1014,7 +1017,8 @@ class Thinker(BaseThinker):
 
         # used same historical data
         to_run_f = self.hist_task_queue_audit[self.simulation_counts % len(self.hist_task_queue_audit)]
-        task_type = 'audit'
+        # task_type = 'audit'
+        task_type = 'active'
         atoms = to_run_f.atoms
         atoms.set_center_of_mass([0, 0, 0])
         xyz = write_to_string(atoms, 'xyz')
