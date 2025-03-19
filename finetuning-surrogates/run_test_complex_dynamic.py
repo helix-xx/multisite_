@@ -485,7 +485,7 @@ class Thinker(BaseThinker):
                     model_msg.get_model()
                 )
                 self.model_updated[model_id] = True
-                self.sample_counts[model_id] = 0
+                # self.sample_counts[model_id] = 0
                 self.logger.info(f'Model {model_id} has been updated')
                 self.sampling_ready.set()
 
@@ -953,7 +953,7 @@ class Thinker(BaseThinker):
                 if resource_triggered and not has_tasks_triggered:
                     # 仅资源事件被触发 - 提交额外训练但不改变主训练逻辑
                     resource_event.clear()
-                    self.logger.info("Resource event triggered - submitting additional training task")
+                    self.logger.info("Resource event triggered - submitting additional simulation task")
                     # 可以在这里设置特殊标记，表示这是额外的训练任务
                     extra_training = True
                 else:
@@ -1605,7 +1605,7 @@ if __name__ == '__main__':
         methods=['run_calculator', 'run_sampling', 'train', 'evaluate'],
         serialization_method='pickle',
         keep_inputs=False,
-        scheduler='mrsa',
+        scheduler='ga',
         available_resources=node_resources,
         # enable_evo=False,
     )

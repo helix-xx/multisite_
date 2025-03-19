@@ -45,6 +45,15 @@ from fff.sampling.md import MolecularDynamics
 from fff.simulation import run_calculator
 from fff.simulation.utils import read_from_string, write_to_string
 
+# Path configuration
+def setup_path():
+    relative_path = "~/project/colmena/multisite_"
+    absolute_path = os.path.expanduser(relative_path)
+    if absolute_path not in sys.path:
+        sys.path.append(absolute_path)
+
+setup_path()
+
 
     
 @dataclass
@@ -79,7 +88,7 @@ class PerformanceDataCollector(BaseThinker):
         # 性能数据存储
         self.performance_data = defaultdict(list)
         
-        simulation_times = 50
+        simulation_times = len(task_queue_audit)
         train_times = 2
         if len(task_queue_audit) >=simulation_times:
             self.logger.info(f"Truncating task queue to {simulation_times} tasks")
