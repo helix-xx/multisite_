@@ -542,7 +542,7 @@ class Thinker(BaseThinker):
         for model_id, updated in self.model_updated.items():
             if not updated:
                 continue
-            while self.sample_counts[model_id] < self.retrain_freq + self.elastic_nums:
+            while self.sample_counts[model_id] < self.retrain_freq * self.training_round + self.elastic_nums:
                 active_model_proxy = self.active_model_proxies[model_id]
                 # Pick the next eligible trajectory and start from the last validated structure
                 trajectory = self.search_space.popleft()
@@ -592,7 +592,7 @@ class Thinker(BaseThinker):
                 # self.logger.info('TIMING - Finish submit_sampler')
 
                 self.sample_counts[model_id] += 1
-            if self.sample_counts[model_id] >= self.retrain_freq + self.elastic_nums:
+            if self.sample_counts[model_id] >= self.retrain_freq * self.training_round + self.elastic_nums:
                 self.model_updated[model_id] = False
                 self.logger.info(f'Model: {model_id} finish submit_sampler')
 
@@ -1076,8 +1076,8 @@ class Thinker(BaseThinker):
             if self.num_complete >= self.num_to_run:
                 self.logger.info('All structures have been evaluated')
                 self.done.set()
-                self.has_tasks.set()
-                return
+                # self.has_tasks.set()
+                # return
 
             # Store the simulation energy for later analysis
             atoms: ase.Atoms = read_from_string(result.value, 'json')
@@ -1371,6 +1371,7 @@ if __name__ == '__main__':
         title='customize', description='customize parameters add by yxx'
     )
     group.add_argument('--work-dir', default='runs', help='work directory')
+    group.add_argument('--scheduler-type', default='fcfs', help='scheduler-type')
     group.add_argument(
         '--threads',
         default='56',
@@ -1605,7 +1606,7 @@ if __name__ == '__main__':
         methods=['run_calculator', 'run_sampling', 'train', 'evaluate'],
         serialization_method='pickle',
         keep_inputs=False,
-        scheduler='ga',
+        scheduler=args.scheduler_type,
         available_resources=node_resources,
         # enable_evo=False,
     )

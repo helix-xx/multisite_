@@ -90,9 +90,21 @@ class PerformanceDataCollector(BaseThinker):
         
         simulation_times = len(task_queue_audit)
         train_times = 2
-        if len(task_queue_audit) >=simulation_times:
-            self.logger.info(f"Truncating task queue to {simulation_times} tasks")
-            self.task_queue_audit = task_queue_audit[:simulation_times]
+        # if len(task_queue_audit) >=simulation_times:
+        #     self.logger.info(f"Truncating task queue to {simulation_times} tasks")
+        #     self.task_queue_audit = task_queue_audit[:simulation_times]
+        
+        seen_length = {}
+        filtered_tasks = []
+        for task in self.task_queue_audit:
+            atom_length = len(task.atoms)
+            if atom_length not in seen_length:
+                seen_length[atom_length] = 0
+                filtered_tasks.append(task)
+            else:
+                seen_length[atom_length] += 1
+        self.task_queue_audit = filtered_tasks
+        simulation_times = len(self.task_queue_audit)
         
         self.total_simulation_tasks = simulation_times * len(cpu_configs) * samples_per_config
         self.total_train_tasks = len(gpu_configs) * samples_per_config * self.expansion_times
