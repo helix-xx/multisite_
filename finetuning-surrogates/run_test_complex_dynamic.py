@@ -285,6 +285,7 @@ class Thinker(BaseThinker):
             self.sample_counts[i] = 0
             
         self.extra_simulation = 0
+        self.extra_train = 0
 
         self.sampling_ready = (
             Event()
@@ -316,54 +317,58 @@ class Thinker(BaseThinker):
     def train_models(self, **kwargs):
         """Submit the models to be retrained"""
             # 获取资源反馈事件
-        resource_event, resource_info = self.queues.get_resource_event('train')
         
-        # 需要等待的事件列表
-        events_to_wait = []
+        self.start_training.wait()
+        extra_training = False
+        # 先不开启train的动态，TODO 动态会导致原本需要进行的train阻塞
+        # resource_event, resource_info = self.queues.get_resource_event('train')
+                
+        # # 需要等待的事件列表
+        # events_to_wait = []
         
-        # 添加用户自定义的事件
-        if hasattr(self, 'start_training'):
-            events_to_wait.append(self.start_training)
+        # # 添加用户自定义的事件
+        # if hasattr(self, 'start_training'):
+        #     events_to_wait.append(self.start_training)
         
-        # 添加资源反馈事件 (如果可用)
-        if resource_event is not None:
-            events_to_wait.append(resource_event)
+        # # 添加资源反馈事件 (如果可用)
+        # if resource_event is not None:
+        #     events_to_wait.append(resource_event)
         
-        # 等待任意一个事件被触发
-        if events_to_wait:
-            self.logger.info(f"Waiting for start_training event or resource availability...")
-            success, triggered_events = wait_for_any_event(events_to_wait, timeout=120)
+        # # 等待任意一个事件被触发
+        # if events_to_wait:
+        #     self.logger.info(f"Waiting for start_training event or resource availability...")
+        #     success, triggered_events = wait_for_any_event(events_to_wait, timeout=120)
             
-            if not success:
-                self.logger.info("No events triggered after waiting, skipping submission")
-                return
+        #     if not success:
+        #         self.logger.info("No events triggered after waiting, skipping submission")
+        #         return
             
-            # 判断是哪个事件被触发了
-            start_training_triggered = self.start_training in triggered_events if hasattr(self, 'start_training') else False
-            resource_triggered = resource_event in triggered_events if resource_event is not None else False
+        #     # 判断是哪个事件被触发了
+        #     start_training_triggered = self.start_training in triggered_events if hasattr(self, 'start_training') else False
+        #     resource_triggered = resource_event in triggered_events if resource_event is not None else False
             
-            if resource_triggered and not start_training_triggered:
-                # 仅资源事件被触发 - 提交额外训练但不改变主训练逻辑
-                resource_event.clear()
-                self.logger.info("Resource event triggered - submitting additional training task")
-                # 可以在这里设置特殊标记，表示这是额外的训练任务
-                extra_training = True
-            else:
-                # 正常训练流程被触发
-                self.logger.info("Normal training cycle triggered")
-                extra_training = False
-        else:
-            # 没有事件需要等待，直接执行
-            self.logger.info("No events to wait for, proceeding directly")
-            extra_training = False
+        #     if resource_triggered and not start_training_triggered:
+        #         # 仅资源事件被触发 - 提交额外训练但不改变主训练逻辑
+        #         resource_event.clear()
+        #         self.logger.info("Resource event triggered - submitting additional training task")
+        #         # 可以在这里设置特殊标记，表示这是额外的训练任务
+        #         extra_training = True
+        #     else:
+        #         # 正常训练流程被触发
+        #         self.logger.info("Normal training cycle triggered")
+        #         extra_training = False
+        # else:
+        #     # 没有事件需要等待，直接执行
+        #     self.logger.info("No events to wait for, proceeding directly")
+        #     extra_training = False
         
         
         # 仅在正常训练时增加训练轮次
-        if not extra_training:
-            pass
-        else:
-            self.training_round -= 1
-            self.logger.info(f'Started additional training (not incrementing round)')
+        # if not extra_training:
+        #     pass
+        # else:
+        #     self.training_round -= 1
+        #     self.logger.info(f'Started additional training (not incrementing round)')
         
         # if 'permit' in kwargs:
         #     # self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
@@ -387,12 +392,18 @@ class Thinker(BaseThinker):
         
             
         self.logger.info('TIMING - Start train_models')
-        self.training_complete.clear()
-        self.training_round += 1
-        self.saved_round += 1
-        self.logger.info(f'Started training batch {self.saved_round}')
-        self.active_updated = False
-        self.model_updated = {i: False for i in range(self.n_models)}
+        if not extra_training:
+            self.training_complete.clear()
+            self.training_round += 1
+            self.saved_round += 1
+            self.logger.info(f'Started training batch {self.saved_round}')
+            self.active_updated = False
+            self.model_updated = {i: False for i in range(self.n_models)}
+        else:
+            self.logger.info(f'Started additional training (not incrementing round)')
+            # just retrain  do nothing
+            # self.active_updated = False
+            # self.model_updated = {i: False for i in range(self.n_models)}
 
         # Load in the training dataset
         with self.db_lock:
@@ -424,6 +435,11 @@ class Thinker(BaseThinker):
         # Send off the models to be trained
         for i, train_set in enumerate(train_sets):
             # Send a training job
+            if extra_training:
+                if self.extra_train%self.n_models != i:
+                    continue
+                else:
+                    self.extra_train += 1
             self.queues.send_inputs(
                 self.starting_model_proxy,
                 train_set,
@@ -436,9 +452,15 @@ class Thinker(BaseThinker):
                     'training_round': self.saved_round,
                     'train_size': len(all_examples),
                     'log_dir': str(self.out_dir / 'task_logs'),
+                    'extra_train': extra_training,
+                    'extra_train_counts': self.extra_train,
                 },
                 resources=ResourceRequirements(cpu=1, gpu=1, node='all'),
             )
+            
+            if extra_training:
+                self.logger.info(f'Submitted extra training task for model {i}')
+                return
             self.training_incomplete += 1
         self.logger.info('TIMING - Finish train_models')
         self.start_training.clear()
@@ -460,7 +482,12 @@ class Thinker(BaseThinker):
             # Store the result to disk
             model_dir = self.out_dir / 'models'
             model_dir.mkdir(exist_ok=True)
-            model_path = model_dir / f'model-{model_id}-round-{self.saved_round}'
+            extra_train = result.task_info.get('extra_train')
+            extra_train_counts = result.task_info.get('extra_train_counts')
+            if extra_train:
+                model_path = model_dir / f'model-{model_id}-round-{self.saved_round}-extra-{extra_train_counts}'
+            else:
+                model_path = model_dir / f'model-{model_id}-round-{self.saved_round}'
             with open(model_path, 'wb') as fp:
                 torch.save(model_msg.get_model(), fp)
             self.logger.info(f'Saved model to: {model_path}')
@@ -468,6 +495,10 @@ class Thinker(BaseThinker):
             # Save the training data
             with open(self.out_dir / 'training-history.json', 'a') as fp:
                 print(json.dumps(train_log.to_dict(orient='list')), file=fp)
+                
+            if extra_train:
+                self.logger.info(f'Extra training task completed for model {model_id}')
+                return
 
             # Update the "active" model
             # if not self.active_updated:
@@ -521,28 +552,12 @@ class Thinker(BaseThinker):
     def submit_sampler(self, **kwargs):
         """Perform molecular dynamics to generate new structures"""
         self.logger.info('TIMING - Start submit_sampler')
-        elastic_nums = 0
-        if 'permit' in kwargs:
-            # self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
-            permit = kwargs['permit']
-            if permit == 1:
-                # TODO Add logic to submit more tasks if needed
-                # if elastic_nums < self.elastic_nums:
-                #     elastic_nums += 1
-                pass
-            elif permit == -1:
-                time.sleep(30)
-            elif permit == 0:
-                # self.sampling_ready.wait()
-                pass
-        # else:
-        #     self.sampling_ready.wait()
         self.sampling_ready.wait()
         # if all model need update, submit enough task, clear the flag
         for model_id, updated in self.model_updated.items():
             if not updated:
                 continue
-            while self.sample_counts[model_id] < self.retrain_freq * self.training_round + self.elastic_nums:
+            while self.sample_counts[model_id] < self.retrain_freq * min(self.training_round, (self.num_to_run + self.elastic_nums*self.n_models)//(self.retrain_freq*self.n_models)) + self.elastic_nums:
                 active_model_proxy = self.active_model_proxies[model_id]
                 # Pick the next eligible trajectory and start from the last validated structure
                 trajectory = self.search_space.popleft()
@@ -592,7 +607,7 @@ class Thinker(BaseThinker):
                 # self.logger.info('TIMING - Finish submit_sampler')
 
                 self.sample_counts[model_id] += 1
-            if self.sample_counts[model_id] >= self.retrain_freq * self.training_round + self.elastic_nums:
+            if self.sample_counts[model_id] >= self.retrain_freq * min(self.training_round, (self.num_to_run + self.elastic_nums*self.n_models)//(self.retrain_freq*self.n_models)) + self.elastic_nums:
                 self.model_updated[model_id] = False
                 self.logger.info(f'Model: {model_id} finish submit_sampler')
 
@@ -890,31 +905,31 @@ class Thinker(BaseThinker):
     def submit_simulation(self, **kwargs):
         """Submit a new simulation to check results from sampling/gather new training data"""
         self.logger.info('TIMING - Start submit_simulation')
-        self.logger.info('completed {}, total {}'.format(self.num_complete, self.training_round * self.retrain_freq))
-        if 'permit' in kwargs:
-            # self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
+        self.logger.info('completed {}, total {}'.format(self.num_complete, (((self.num_to_run + self.elastic_nums*self.n_models)//(self.retrain_freq*self.n_models)) * self.retrain_freq * self.n_models + self.elastic_nums*self.n_models)))
+        # if 'permit' in kwargs:
+        #     # self.logger.info('permit {}, info {}'.format(kwargs['permit'], kwargs['info']))
         
-            permit = kwargs['permit']
-            if permit == 1:
-                # pass the limit
-                pass
-            elif permit == -1:
-                time.sleep(30)
-            elif permit == 0:
-                # if already submit enough simulation, return
-                # if self.num_complete >= self.training_round * self.retrain_freq:
-                #     time.sleep(30)
-                #     return
-                pass
-            else:
-                self.logger.info('permit error')
-                return
-        else:
-            # if already submit enough simulation, return
-            self.logger.info('completed {}, total {}'.format(self.num_complete, self.training_round * self.retrain_freq))
-            # if self.num_complete >= self.training_round * self.retrain_freq:
-            #     return
-            pass
+        #     permit = kwargs['permit']
+        #     if permit == 1:
+        #         # pass the limit
+        #         pass
+        #     elif permit == -1:
+        #         time.sleep(30)
+        #     elif permit == 0:
+        #         # if already submit enough simulation, return
+        #         # if self.num_complete >= self.training_round * self.retrain_freq:
+        #         #     time.sleep(30)
+        #         #     return
+        #         pass
+        #     else:
+        #         self.logger.info('permit error')
+        #         return
+        # else:
+        #     # if already submit enough simulation, return
+        #     self.logger.info('completed {}, total {}'.format(self.num_complete, self.training_round * self.retrain_freq))
+        #     # if self.num_complete >= self.training_round * self.retrain_freq:
+        #     #     return
+        #     pass
         # add logic, each run submit num_modls*retrain_freq numbers of task
         # Get a simulation to run
         to_run = None
@@ -968,17 +983,21 @@ class Thinker(BaseThinker):
             if not extra_training:
                 pass
             else:
-                with self.task_queue_lock:
-                    self.task_queue_audit.append(
-                        self.hist_task_queue_audit[0]
-                    )
-                    self.has_tasks.set()
-                    self._log_queue_sizes()
-                    self.num_to_run = self.num_to_run + 1
-                self.logger.info(f'Started additional simulation')
+                # with self.task_queue_lock:
+                #     self.task_queue_audit.append(
+                #         self.hist_task_queue_audit[0]
+                #     )
+                #     self.has_tasks.set()
+                #     self._log_queue_sizes()
+                #     self.num_to_run = self.num_to_run + 1
+                self.extra_simulation += 1
+                self.logger.info(f'Started additional simulation, extra_simulation counts: {self.extra_simulation}')
             ################################################################
             if self.done.is_set():
                 return
+            if extra_training:
+                # break the while loop
+                break
             with self.task_queue_lock:  # Wait for another thread to add structures
                 task_type = None
 
@@ -1002,6 +1021,11 @@ class Thinker(BaseThinker):
                         to_run = _task_pull()
                         task_type = _task_type
                         self._log_queue_sizes()
+                        
+                        self.logger.info(f'Selected a {task_type} to run next')
+                        atoms = to_run.atoms
+                        atoms.set_center_of_mass([0, 0, 0])
+                        xyz = write_to_string(atoms, 'xyz')
                         break
 
             # If task_type is None, neither were picked
@@ -1010,10 +1034,6 @@ class Thinker(BaseThinker):
                 self.has_tasks.clear()  # We don't have any tasks to run
 
         # Submit it
-        self.logger.info(f'Selected a {task_type} to run next')
-        atoms = to_run.atoms
-        atoms.set_center_of_mass([0, 0, 0])
-        xyz = write_to_string(atoms, 'xyz')
 
         # used same historical data
         to_run_f = self.hist_task_queue_audit[self.simulation_counts % len(self.hist_task_queue_audit)]
@@ -1029,9 +1049,9 @@ class Thinker(BaseThinker):
             topic='simulate',
             keep_inputs=True,  # The XYZ file is not big
             task_info={
-                'traj_id': to_run.traj_id,
+                'traj_id': to_run_f.traj_id,
                 'task_type': task_type,
-                'ml_energy': to_run.ml_eng,
+                'ml_energy': to_run_f.ml_eng,
                 'xyz': xyz,
                 'log_dir': str(self.out_dir / 'task_logs'),
             },
@@ -1039,6 +1059,13 @@ class Thinker(BaseThinker):
         )
         self.logger.info('TIMING - Finish submit_simulation')
         self.simulation_counts += 1
+        
+        if self.simulation_counts >= (((self.num_to_run + self.elastic_nums*self.n_models)//(self.retrain_freq*self.n_models)) * self.retrain_freq * self.n_models + self.elastic_nums*self.n_models):
+            self.logger.info('Submit simulations: engough simulations have been submited. simulation counts: {}'.format(self.simulation_counts))
+            # self.done.set()
+            # self.done.wait()
+            # return
+            
         # we now just submit all simulation
         # if self.simulation_counts == self.n_models * self.retrain_freq:
         #     self.simulation_counts == 0
@@ -1071,9 +1098,10 @@ class Thinker(BaseThinker):
             # Count the completed calculation
             self.num_complete += 1
             self.logger.info(
-                f'Evaluated {self.num_complete}/{self.num_to_run} structures'
+                f'Evaluated {self.num_complete}/{self.num_to_run} structures, extra_simulation: {self.extra_simulation}'
             )
-            if self.num_complete >= self.num_to_run:
+            # if self.num_complete >= self.num_to_run:
+            if self.num_complete >= (((self.num_to_run + self.elastic_nums*self.n_models)//(self.retrain_freq*self.n_models)) * self.retrain_freq * self.n_models + self.elastic_nums*self.n_models):
                 self.logger.info('All structures have been evaluated')
                 self.done.set()
                 # self.has_tasks.set()
@@ -1132,8 +1160,9 @@ class Thinker(BaseThinker):
                     'Difference is too large. Not storing as this structure is unrealistic'
                 )
 
+            # direct retrain judge by simulation counts % retrain_freq
             # Trigger actions based on number of tasks completed
-            if self.num_complete % (self.retrain_freq * self.n_models) == 0:
+            if self.num_complete // (self.retrain_freq * self.n_models) >= self.training_round:
                 if self.training_complete.is_set():
                     self.logger.info(
                         'Sufficient data collected to retrain. Triggering training to restart.'
